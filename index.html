@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#000">
-<title>◈ الهرم الكوني ◈</title>
+<title>MONOLITH</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
@@ -15,84 +15,147 @@
     touch-action: none;
     -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Helvetica Neue', -apple-system, sans-serif;
+    color: #fff;
   }
-  canvas { display: block; }
+  canvas { display: block; position: fixed; inset: 0; }
   
-  #hud {
+  /* ============ HUD ============ */
+  .hud {
     position: fixed;
     top: 0; left: 0; right: 0;
-    padding: 20px 25px;
+    padding: 24px 28px;
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    color: rgba(255,255,255,0.85);
-    font-size: 12px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
+    align-items: flex-start;
     pointer-events: none;
     z-index: 10;
-    font-weight: 300;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    font-weight: 200;
   }
   
-  #status {
+  .hud-left, .hud-right {
     display: flex;
-    align-items: center;
-    gap: 8px;
+    flex-direction: column;
+    gap: 6px;
   }
   
-  #dot {
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    background: #4af;
-    box-shadow: 0 0 12px #4af;
-    animation: pulse 1.5s ease-in-out infinite;
+  .hud-right { align-items: flex-end; }
+  
+  .label {
+    color: rgba(255,255,255,0.35);
+    font-size: 9px;
+    letter-spacing: 4px;
   }
   
-  @keyframes pulse {
-    0%, 100% { opacity: 0.5; transform: scale(1); }
-    50% { opacity: 1; transform: scale(1.3); }
+  .value {
+    color: rgba(140,220,255,0.9);
+    font-size: 14px;
+    letter-spacing: 2px;
+    font-weight: 300;
+    text-shadow: 0 0 15px rgba(80,200,255,0.8);
+    font-variant-numeric: tabular-nums;
   }
   
-  #title {
+  .phase-name {
+    color: rgba(255,255,255,0.95);
+    font-size: 11px;
+    letter-spacing: 5px;
+    font-weight: 400;
+  }
+  
+  /* Progress Bar */
+  .progress-wrap {
+    margin-top: 10px;
+    width: 120px;
+    height: 2px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+  
+  .progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #4af, #0ff);
+    box-shadow: 0 0 10px #4af;
+    transition: width 0.3s ease-out;
+  }
+  
+  /* Bottom Title */
+  .bottom-brand {
     position: fixed;
     bottom: 30px;
     left: 0; right: 0;
     text-align: center;
-    color: rgba(255,255,255,0.4);
-    font-size: 11px;
-    letter-spacing: 6px;
-    text-transform: uppercase;
     pointer-events: none;
     z-index: 10;
-    font-weight: 300;
+  }
+  
+  .brand {
+    font-size: 9px;
+    letter-spacing: 12px;
+    color: rgba(255,255,255,0.25);
+    font-weight: 200;
+    text-transform: uppercase;
+  }
+  
+  /* Pulsing dot */
+  .live-dot {
+    display: inline-block;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: #0ff;
+    box-shadow: 0 0 8px #0ff;
+    margin-right: 8px;
+    vertical-align: middle;
+    animation: livePulse 2s ease-in-out infinite;
+  }
+  
+  @keyframes livePulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; box-shadow: 0 0 15px #0ff; }
   }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 
-<div id="hud">
-  <div id="status">
-    <div id="dot"></div>
-    <span id="phase">بناء</span>
+<div class="hud">
+  <div class="hud-left">
+    <div class="label">PHASE</div>
+    <div class="phase-name"><span class="live-dot"></span><span id="phase">CONSTRUCT</span></div>
+    <div class="progress-wrap"><div class="progress-bar" id="progress"></div></div>
   </div>
-  <div id="counter">0 / 0</div>
+  <div class="hud-right">
+    <div class="label">PARTICLES</div>
+    <div class="value" id="counter">0000</div>
+    <div class="label" style="margin-top:8px">FPS</div>
+    <div class="value" id="fps">60</div>
+  </div>
 </div>
-<div id="title">◈ pyramid ◈</div>
+
+<div class="bottom-brand">
+  <div class="brand">◈ MONOLITH ◈</div>
+</div>
 
 <script>
 'use strict';
 
-// ==========================================
-// 🌌 الإعداد الأساسي
-// ==========================================
-var canvas = document.getElementById('c');
-var ctx = canvas.getContext('2d');
-var phaseEl = document.getElementById('phase');
-var counterEl = document.getElementById('counter');
+// ============================================================
+// MONOLITH — Cinematic Particle Pyramid
+// ============================================================
 
-var W, H, DPR;
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d', { alpha: false });
+const phaseEl = document.getElementById('phase');
+const counterEl = document.getElementById('counter');
+const fpsEl = document.getElementById('fps');
+const progressEl = document.getElementById('progress');
+
+let W, H, DPR;
 function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 2);
   W = window.innerWidth;
@@ -102,248 +165,201 @@ function resize() {
   canvas.style.width = W + 'px';
   canvas.style.height = H + 'px';
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, W, H);
+  initStars();
+  buildPyramid();
 }
 resize();
-window.addEventListener('resize', function() {
-  setTimeout(function() {
-    resize();
-    rebuildScene();
-  }, 200);
-});
+window.addEventListener('resize', () => setTimeout(resize, 200));
 
-// ==========================================
-// 🎨 Palette
-// ==========================================
-function hue2rgb(p, q, t) {
-  if (t < 0) t += 1;
-  if (t > 1) t -= 1;
-  if (t < 1/6) return p + (q - p) * 6 * t;
-  if (t < 1/2) return q;
-  if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
-  return p;
-}
-function hsl(h, s, l) {
-  h = (h % 360) / 360;
-  var r, g, b;
-  if (s === 0) { r = g = b = l; }
-  else {
-    var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    var p = 2 * l - q;
-    r = hue2rgb(p, q, h + 1/3);
-    g = hue2rgb(p, q, h);
-    b = hue2rgb(p, q, h - 1/3);
-  }
-  return 'rgb(' + Math.round(r*255) + ',' + Math.round(g*255) + ',' + Math.round(b*255) + ')';
-}
-function hsla(h, s, l, a) {
-  h = (h % 360) / 360;
-  var r, g, b;
-  if (s === 0) { r = g = b = l; }
-  else {
-    var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    var p = 2 * l - q;
-    r = hue2rgb(p, q, h + 1/3);
-    g = hue2rgb(p, q, h);
-    b = hue2rgb(p, q, h - 1/3);
-  }
-  return 'rgba(' + Math.round(r*255) + ',' + Math.round(g*255) + ',' + Math.round(b*255) + ',' + a + ')';
+// ============================================================
+// 🎨 COLOR SYSTEM — Teal & Orange (cinematic palette)
+// ============================================================
+const PALETTE = {
+  primary:   { h: 195, s: 100, l: 60 },   // cyan
+  secondary: { h: 280, s: 90,  l: 65 },   // violet
+  accent:    { h: 35,  s: 100, l: 60 },   // orange
+  highlight: { h: 180, s: 100, l: 75 }    // light cyan
+};
+
+function hsl(h, s, l, a) {
+  if (a === undefined) return `hsl(${h}, ${s}%, ${l}%)`;
+  return `hsla(${h}, ${s}%, ${l}%, ${a})`;
 }
 
-// ==========================================
-// 🌠 الخلفية الكونية
-// ==========================================
-var bgStars = [];
-var nebula = [];
+// ============================================================
+// 🌌 STARFIELD (3D depth layers)
+// ============================================================
+let starLayers = [];
 
-function initBackground() {
-  bgStars = [];
-  var count = Math.floor((W * H) / 8000);
-  for (var i = 0; i < count; i++) {
-    bgStars.push({
-      x: Math.random() * W,
-      y: Math.random() * H,
-      size: Math.random() * 1.5 + 0.3,
-      alpha: Math.random() * 0.7 + 0.2,
-      speed: Math.random() * 0.02 + 0.005,
-      phase: Math.random() * Math.PI * 2
-    });
-  }
-  
-  nebula = [
-    { x: W * 0.2, y: H * 0.3, r: W * 0.6, hue: 220, alpha: 0.08 },
-    { x: W * 0.8, y: H * 0.7, r: W * 0.5, hue: 280, alpha: 0.06 },
-    { x: W * 0.5, y: H * 0.5, r: W * 0.8, hue: 200, alpha: 0.04 }
+function initStars() {
+  starLayers = [
+    { stars: [], count: 200, size: 0.5, alpha: 0.3, speed: 0.02, parallax: 0.05 },
+    { stars: [], count: 120, size: 0.9, alpha: 0.6, speed: 0.05, parallax: 0.1 },
+    { stars: [], count: 50,  size: 1.5, alpha: 0.9, speed: 0.1,  parallax: 0.2 }
   ];
+  
+  for (const layer of starLayers) {
+    for (let i = 0; i < layer.count; i++) {
+      layer.stars.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        phase: Math.random() * Math.PI * 2,
+        freq: 0.5 + Math.random() * 2
+      });
+    }
+  }
 }
 
-function drawBackground(time) {
-  // خلفية سوداء عميقة متدرجة
-  var grad = ctx.createRadialGradient(W/2, H*0.3, 0, W/2, H*0.3, Math.max(W, H) * 0.8);
-  grad.addColorStop(0, '#050818');
-  grad.addColorStop(0.5, '#02030a');
-  grad.addColorStop(1, '#000000');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
-  
-  // سديم
-  for (var n = 0; n < nebula.length; n++) {
-    var neb = nebula[n];
-    var pulse = Math.sin(time * 0.0003 + n) * 0.02;
-    var rad = neb.r * (1 + pulse);
-    var ng = ctx.createRadialGradient(neb.x, neb.y, 0, neb.x, neb.y, rad);
-    ng.addColorStop(0, hsla(neb.hue, 0.9, 0.5, neb.alpha));
-    ng.addColorStop(1, hsla(neb.hue, 0.9, 0.5, 0));
-    ctx.fillStyle = ng;
-    ctx.fillRect(0, 0, W, H);
-  }
-  
-  // نجوم الخلفية
-  for (var i = 0; i < bgStars.length; i++) {
-    var s = bgStars[i];
-    var tw = Math.sin(time * s.speed + s.phase) * 0.5 + 0.5;
-    ctx.globalAlpha = s.alpha * (0.4 + tw * 0.6);
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-}
+// ============================================================
+// 🔺 PYRAMID TARGETS
+// ============================================================
+let pyramidTargets = [];
+let totalPoints = 0;
 
-// ==========================================
-// 🔺 بناء نقاط الهرم (ضلعية)
-// ==========================================
-var pyramidTargets = [];
-
-function buildPyramidPoints() {
+function buildPyramid() {
   pyramidTargets = [];
   
-  var baseY = H * 0.88;
-  var tipY = H * 0.22;
-  var pyramidH = baseY - tipY;
-  var pyramidW = Math.min(W * 0.85, H * 0.75);
-  var cx = W / 2;
+  const baseY = H * 0.86;
+  const tipY = H * 0.18;
+  const pyramidH = baseY - tipY;
+  const pyramidW = Math.min(W * 0.9, H * 0.8);
+  const cx = W / 2;
   
-  var rows = 22;
+  const rows = 24;
   
-  // الضلعان الجانبيان فقط
-  for (var row = 0; row < rows; row++) {
-    var t = row / (rows - 1);           // 0 = القمة, 1 = القاعدة
-    var y = tipY + t * pyramidH;
-    var width = t * pyramidW;
+  for (let row = 0; row < rows; row++) {
+    const t = row / (rows - 1);
+    const y = tipY + t * pyramidH;
+    const width = t * pyramidW;
     
-    // نقاط كل صف (كثافة أكبر كلما نزلنا)
-    var countInRow = Math.max(1, Math.floor(1 + t * 14));
+    const countInRow = Math.max(1, Math.floor(1 + t * 16));
     
-    for (var j = 0; j < countInRow; j++) {
-      var frac = countInRow === 1 ? 0.5 : j / (countInRow - 1);
-      var x = cx - width/2 + frac * width;
+    for (let j = 0; j < countInRow; j++) {
+      const frac = countInRow === 1 ? 0.5 : j / (countInRow - 1);
+      const x = cx - width / 2 + frac * width;
       
-      // ترتيب: من الأعلى للأسفل، من الوسط للخارج
+      // Gradient from cyan to violet to orange
+      let hue;
+      if (t < 0.5) {
+        hue = PALETTE.primary.h + (PALETTE.secondary.h - PALETTE.primary.h) * (t / 0.5);
+      } else {
+        hue = PALETTE.secondary.h + (PALETTE.accent.h - PALETTE.secondary.h) * ((t - 0.5) / 0.5);
+      }
+      
       pyramidTargets.push({
         x: x,
         y: y,
-        size: 2.5 + Math.random() * 2,
-        hue: 190 + t * 90,           // أزرق → ذهبي
-        delay: row * 30 + j * 5,      // تأخير البناء
+        size: 2 + Math.random() * 1.5,
+        hue: hue,
         row: row,
-        settled: false
+        t: t,
+        reserved: false,
+        settled: false,
+        settleTime: 0
       });
     }
   }
   
-  // ترتيب من الأعلى للأسفل
-  pyramidTargets.sort(function(a, b) { return a.row - b.row; });
+  totalPoints = pyramidTargets.length;
 }
 
-// ==========================================
-// ☄️ نجم ساقط (شهاب)
-// ==========================================
-var stars = [];
-var maxStars = 500;
-var lastSpawn = 0;
+// ============================================================
+// ☄️ METEOR SYSTEM
+// ============================================================
+let meteors = [];
+let lastSpawn = 0;
+let spawnInterval = 55;
 
-function createStar(targetIndex) {
-  var angle = Math.PI / 2 + (Math.random() - 0.5) * 0.4;
-  var speed = 3 + Math.random() * 3;
+function spawnMeteor() {
+  // Find next unreserved target (top to bottom)
+  let targetIdx = -1;
+  for (let i = 0; i < pyramidTargets.length; i++) {
+    if (!pyramidTargets[i].reserved && !pyramidTargets[i].settled) {
+      targetIdx = i;
+      pyramidTargets[i].reserved = true;
+      break;
+    }
+  }
+  if (targetIdx < 0) return;
   
-  return {
-    x: Math.random() * W * 1.2 - W * 0.1,
-    y: -30 - Math.random() * 100,
-    vx: Math.cos(angle) * speed,
-    vy: Math.sin(angle) * speed,
-    size: 2 + Math.random() * 3,
-    hue: 180 + Math.random() * 60,
+  // Meteor starts from top, random x
+  const startX = Math.random() * W;
+  const startY = -50 - Math.random() * 100;
+  
+  meteors.push({
+    x: startX,
+    y: startY,
+    vx: (Math.random() - 0.5) * 2,
+    vy: 4 + Math.random() * 3,
+    size: 3 + Math.random() * 2,
+    hue: pyramidTargets[targetIdx].hue,
     trail: [],
-    maxTrail: 10,
+    maxTrail: 14,
+    target: targetIdx,
     mode: 'falling',
-    target: targetIndex,
-    wobble: Math.random() * Math.PI * 2,
-    wobbleSpeed: 0.1 + Math.random() * 0.15,
-    life: 1
-  };
+    spin: Math.random() * Math.PI * 2,
+    spinSpeed: 0.15 + Math.random() * 0.1
+  });
 }
 
-// ==========================================
-// 💥 جزيئات الغبار
-// ==========================================
-var dust = [];
+// ============================================================
+// 💫 DUST PARTICLES
+// ============================================================
+let dust = [];
 
-function createDust(x, y, hue, count, power) {
-  for (var i = 0; i < count; i++) {
-    var angle = Math.random() * Math.PI * 2;
-    var spd = Math.random() * power + 0.5;
+function spawnDust(x, y, hue, count, power) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * power + 0.8;
     dust.push({
       x: x, y: y,
-      vx: Math.cos(angle) * spd,
-      vy: Math.sin(angle) * spd - 0.5,
-      size: 1 + Math.random() * 2,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 0.8,
+      size: 1.5 + Math.random() * 2.5,
       hue: hue,
       life: 1,
-      decay: 0.02 + Math.random() * 0.02,
-      gravity: 0.15
+      decay: 0.018 + Math.random() * 0.02,
+      gravity: 0.18
     });
   }
 }
 
-// ==========================================
-// 🌊 موجات الصدمة
-// ==========================================
-var shockwaves = [];
+// ============================================================
+// 🌊 SHOCKWAVES
+// ============================================================
+let shockwaves = [];
 
-function createShockwave(x, y, hue) {
+function spawnShockwave(x, y, hue) {
   shockwaves.push({
-    x: x, y: y,
+    x, y,
     r: 5,
-    maxR: Math.max(W, H) * 0.6,
+    maxR: Math.max(W, H) * 0.7,
     hue: hue,
     life: 1,
-    decay: 0.012,
-    width: 4
+    decay: 0.02,
+    width: 3
   });
 }
 
-// ==========================================
-// 🏛️ الجسيمات المستقرة
-// ==========================================
-var settled = [];
+// ============================================================
+// 🏛️ SETTLED PARTICLES
+// ============================================================
+let settled = [];
 
-// ==========================================
-// 🎬 حالة المشهد
-// ==========================================
-var phase = 'building';    // building, complete, celebrating, collapse
-var phaseTime = 0;
-var builtCount = 0;
-var totalPoints = 0;
-var spawnInterval = 70;
-var lastFrameTime = 0;
-var shakeAmount = 0;
-var shakeX = 0, shakeY = 0;
+// ============================================================
+// 🎬 SCENE STATE
+// ============================================================
+let phase = 'building';
+let phaseTime = 0;
+let builtCount = 0;
+let startTime = performance.now();
+let shakeAmount = 0;
+let shakeX = 0, shakeY = 0;
+let cameraRot = 0;
+let flashAlpha = 0;
 
 function resetScene() {
-  stars = [];
+  meteors = [];
   dust = [];
   shockwaves = [];
   settled = [];
@@ -351,336 +367,491 @@ function resetScene() {
   phase = 'building';
   phaseTime = 0;
   shakeAmount = 0;
-  buildPyramidPoints();
+  flashAlpha = 0;
+  buildPyramid();
   totalPoints = pyramidTargets.length;
+  phaseEl.textContent = 'CONSTRUCT';
 }
 
-function rebuildScene() {
-  initBackground();
-  resetScene();
-}
+// ============================================================
+// 🎥 MAIN RENDER LOOP
+// ============================================================
+let lastFrame = performance.now();
+let frameCount = 0;
+let fpsTimer = performance.now();
 
-// ==========================================
-// 🎬 حلقة الرسم الرئيسية
-// ==========================================
-function loop(now) {
-  var dt = Math.min((now - lastFrameTime) / 16.667, 3);
-  lastFrameTime = now;
-  phaseTime += now - (lastFrameTime - 16 * dt); // تقديري
+function render(now) {
+  const dt = Math.min((now - lastFrame) / 16.667, 2.5);
+  lastFrame = now;
+  const t = now - startTime;
   
-  // ====== اهتزاز الشاشة ======
-  if (shakeAmount > 0.1) {
+  // Camera shake
+  if (shakeAmount > 0.2) {
     shakeX = (Math.random() - 0.5) * shakeAmount;
     shakeY = (Math.random() - 0.5) * shakeAmount;
-    shakeAmount *= 0.9;
+    shakeAmount *= 0.92;
   } else {
-    shakeX = 0;
-    shakeY = 0;
+    shakeX *= 0.85;
+    shakeY *= 0.85;
   }
   
   ctx.save();
   ctx.translate(shakeX, shakeY);
   
-  // ====== 1. رسم الخلفية ======
-  drawBackground(now);
+  // ====== LAYER 1: Deep Space Background ======
+  drawSpaceBackground(t);
   
-  // ====== 2. إصدار النجوم ======
+  // ====== LAYER 2: Ground Grid ======
+  drawGroundGrid(t);
+  
+  // ====== LAYER 3: Meteors Spawn ======
   if (phase === 'building' && builtCount < totalPoints) {
-    if (now - lastSpawn > spawnInterval && stars.length < maxStars) {
-      var nextTarget = -1;
-      // ابحث عن نقطة غير محجوزة
-      for (var i = 0; i < pyramidTargets.length; i++) {
-        if (!pyramidTargets[i].reserved && !pyramidTargets[i].settled) {
-          nextTarget = i;
-          pyramidTargets[i].reserved = true;
-          break;
-        }
-      }
-      if (nextTarget >= 0) {
-        stars.push(createStar(nextTarget));
-        lastSpawn = now;
-      }
+    if (now - lastSpawn > spawnInterval) {
+      spawnMeteor();
+      lastSpawn = now;
     }
   }
   
-  // ====== 3. تحديث النجوم ======
-  for (var i = stars.length - 1; i >= 0; i--) {
-    var s = stars[i];
-    
-    if (s.mode === 'falling') {
-      s.vx += (Math.random() - 0.5) * 0.1;
-      s.vy += 0.08;
-      s.vx *= 0.995;
-      s.vy *= 0.995;
-      s.x += s.vx * dt;
-      s.y += s.vy * dt;
-      s.wobble += s.wobbleSpeed * dt;
-      
-      s.trail.push({ x: s.x, y: s.y });
-      if (s.trail.length > s.maxTrail) s.trail.shift();
-      
-      // وصل لمستوى كافٍ؟ ابدأ الانجذاب
-      if (s.y > H * 0.3) {
-        s.mode = 'attracting';
-      }
-      
-    } else if (s.mode === 'attracting') {
-      var target = pyramidTargets[s.target];
-      if (!target) {
-        stars.splice(i, 1);
-        continue;
-      }
-      
-      var dx = target.x - s.x;
-      var dy = target.y - s.y;
-      var dist = Math.sqrt(dx*dx + dy*dy);
-      
-      if (dist < 4) {
-        // استقر
-        s.mode = 'settled';
-        target.settled = true;
-        settled.push({
-          x: target.x,
-          y: target.y,
-          size: target.size,
-          hue: target.hue,
-          pulse: Math.random() * Math.PI * 2
-        });
-        builtCount++;
-        
-        // تأثير اصطدام
-        createDust(target.x, target.y, target.hue, 6, 3);
-        
-        // اهتزاز خفيف
-        shakeAmount = Math.max(shakeAmount, 3);
-        
-        stars.splice(i, 1);
-        continue;
-      } else {
-        // انجذاب مع تسارع
-        s.vx += dx * 0.006 * dt;
-        s.vy += dy * 0.006 * dt;
-        s.vx *= 0.94;
-        s.vy *= 0.94;
-        s.x += s.vx * dt;
-        s.y += s.vy * dt;
-        s.wobble += 0.3 * dt;
-        
-        s.trail.push({ x: s.x, y: s.y });
-        if (s.trail.length > s.maxTrail) s.trail.shift();
-      }
-    }
-    
-    // تنظيف
-    if (s.x < -200 || s.x > W + 200 || s.y > H + 200) {
-      stars.splice(i, 1);
-    }
-  }
-  
-  // ====== 4. رسم النجوم ======
+  // ====== LAYER 4: Update & Draw Meteors ======
   ctx.globalCompositeOperation = 'lighter';
+  updateMeteors(dt);
+  drawMeteors();
   
-  for (var i = 0; i < stars.length; i++) {
-    var s = stars[i];
-    
-    // الذيل
-    for (var t = 0; t < s.trail.length; t++) {
-      var tr = s.trail[t];
-      var frac = t / s.trail.length;
-      var alpha = frac * 0.7;
-      var radius = s.size * frac * 0.9;
-      if (radius < 0.3) continue;
-      
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle = hsl(s.hue, 1, 0.6);
-      ctx.shadowBlur = 8 * frac;
-      ctx.shadowColor = hsl(s.hue, 1, 0.6);
-      ctx.beginPath();
-      ctx.arc(tr.x, tr.y, radius, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    
-    // الجسم الرئيسي
-    var wobbleSize = s.size * (1 + Math.sin(s.wobble) * 0.2);
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = hsl(s.hue, 1, 0.7);
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = hsl(s.hue, 1, 0.6);
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, wobbleSize, 0, Math.PI * 2);
-    ctx.fill();
-    
-    // النواة البيضاء
-    ctx.fillStyle = '#fff';
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = '#fff';
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, wobbleSize * 0.4, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  // ====== LAYER 5: Draw Settled ======
+  drawSettled(t, dt);
   
-  // ====== 5. رسم الجسيمات المستقرة ======
-  for (var i = 0; i < settled.length; i++) {
-    var p = settled[i];
-    p.pulse += 0.08 * dt;
-    var pulse = Math.sin(p.pulse) * 0.3 + 0.7;
-    
-    ctx.globalAlpha = 0.85 + pulse * 0.15;
-    ctx.fillStyle = hsl(p.hue, 1, 0.6);
-    ctx.shadowBlur = 15 * pulse;
-    ctx.shadowColor = hsl(p.hue, 1, 0.65);
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size * pulse, 0, Math.PI * 2);
-    ctx.fill();
-    
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.shadowBlur = 5;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.size * pulse * 0.35, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  // ====== LAYER 6: Dust ======
+  updateDrawDust(dt);
   
-  // ====== 6. الغبار ======
-  for (var i = dust.length - 1; i >= 0; i--) {
-    var d = dust[i];
-    d.vx *= 0.96;
-    d.vy *= 0.96;
-    d.vy += d.gravity * dt;
-    d.x += d.vx * dt;
-    d.y += d.vy * dt;
-    d.life -= d.decay * dt;
-    
-    if (d.life <= 0) {
-      dust.splice(i, 1);
-      continue;
-    }
-    
-    ctx.globalAlpha = d.life;
-    ctx.fillStyle = hsl(d.hue, 1, 0.7);
-    ctx.shadowBlur = 10 * d.life;
-    ctx.shadowColor = hsl(d.hue, 1, 0.6);
-    ctx.beginPath();
-    ctx.arc(d.x, d.y, d.size * d.life, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  // ====== LAYER 7: Shockwaves ======
+  updateDrawShockwaves(dt);
   
-  // ====== 7. موجات الصدمة ======
-  for (var i = shockwaves.length - 1; i >= 0; i--) {
-    var sw = shockwaves[i];
-    sw.r += 15 * dt;
-    sw.life -= sw.decay * dt;
-    sw.width *= 0.97;
-    
-    if (sw.life <= 0) {
-      shockwaves.splice(i, 1);
-      continue;
-    }
-    
-    ctx.globalAlpha = sw.life * 0.8;
-    ctx.strokeStyle = hsl(sw.hue, 1, 0.7);
-    ctx.lineWidth = sw.width;
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = hsl(sw.hue, 1, 0.7);
-    ctx.beginPath();
-    ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2);
-    ctx.stroke();
-  }
+  // ====== LAYER 8: Chromatic Bloom ======
+  drawBloom();
   
   ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = 1;
   ctx.shadowBlur = 0;
   
-  // ====== 8. إدارة الحالة ======
-  if (phase === 'building') {
-    counterEl.textContent = builtCount + ' / ' + totalPoints;
-    if (builtCount >= totalPoints && stars.length === 0) {
-      phase = 'complete';
-      phaseEl.textContent = 'اكتمل';
-      phaseTime = now;
-      
-      // احتفال
-      var cx = W / 2;
-      var cy = H * 0.55;
-      createShockwave(cx, cy, 220);
-      createShockwave(cx, cy, 280);
-      shakeAmount = 25;
-      
-      // انفجار غبار
-      for (var row = 0; row < pyramidTargets.length; row += 3) {
-        var t = pyramidTargets[row];
-        createDust(t.x, t.y, t.hue, 3, 4);
-      }
-    }
-  } 
-  else if (phase === 'complete') {
-    if (now - phaseTime > 2500) {
-      phase = 'collapse';
-      phaseEl.textContent = 'انهيار';
-      phaseTime = now;
-      
-      // بدء الانهيار - تحويل الجسيمات المستقرة إلى حرة
-      for (var i = 0; i < settled.length; i++) {
-        var p = settled[i];
-        dust.push({
-          x: p.x, y: p.y,
-          vx: (p.x - W/2) * 0.03 + (Math.random() - 0.5) * 5,
-          vy: (Math.random() - 0.5) * 5 - 2,
-          size: p.size * 1.5,
-          hue: p.hue,
-          life: 1,
-          decay: 0.008 + Math.random() * 0.01,
-          gravity: 0.25
-        });
-      }
-      settled = [];
-      shakeAmount = 40;
-    }
-  }
-  else if (phase === 'collapse') {
-    // بقاء الجسيمات في dust، تختفي تدريجياً
-    if (now - phaseTime > 2500 && dust.length < 30) {
-      resetScene();
-      phaseEl.textContent = 'بناء';
-    }
+  // ====== LAYER 9: Vignette ======
+  drawVignette();
+  
+  // ====== LAYER 10: Flash ======
+  if (flashAlpha > 0.01) {
+    ctx.fillStyle = `rgba(180, 240, 255, ${flashAlpha})`;
+    ctx.fillRect(0, 0, W, H);
+    flashAlpha *= 0.9;
   }
   
   ctx.restore();
   
-  requestAnimationFrame(loop);
+  // ====== STATE MANAGEMENT ======
+  updateState(now);
+  
+  // ====== HUD ======
+  frameCount++;
+  if (now - fpsTimer > 500) {
+    fpsEl.textContent = Math.round(frameCount * 1000 / (now - fpsTimer));
+    frameCount = 0;
+    fpsTimer = now;
+  }
+  counterEl.textContent = String(builtCount).padStart(4, '0');
+  progressEl.style.width = (builtCount / totalPoints * 100) + '%';
+  
+  requestAnimationFrame(render);
 }
 
-// ==========================================
-// 📱 التفاعل
-// ==========================================
-canvas.addEventListener('touchstart', function(e) {
+// ============================================================
+// 🎨 SPACE BACKGROUND
+// ============================================================
+function drawSpaceBackground(t) {
+  // Deep gradient
+  const grad = ctx.createRadialGradient(W/2, H*0.4, 0, W/2, H*0.4, Math.max(W, H) * 0.9);
+  grad.addColorStop(0, '#0a1428');
+  grad.addColorStop(0.4, '#050a18');
+  grad.addColorStop(1, '#000000');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0.sin, W, H);
+  
+  // Nebula(t
+  const neb1 = ctx.createRadialGradient(W*0 *.25, H*0.35,  0, W*0.25, H*00.35, W*0.55);
+.  neb1.addColorStop(0, 'rgba(30, 100, 180, 0.06)');
+  neb1.addColorStop(1, 'rgba(30, 100, 180, 0)');
+  ctx.fillStyle = neb1;
+  ctx.fillRect(0, 0, W, H);
+  
+  const neb2 = ctx.createRadialGradient(W*0.75, H*0.6, 0, W*0.75, H*0.6, W*0.5);
+  neb2.addColorStop(0, 'rgba(120, 40, 200, 0.05)');
+  neb2.addColorStop(1, 'rgba(120, 40, 200, 0)');
+  ctx.fillStyle = neb2;
+  ctx.fillRect(0, 0, W, H);
+  
+  // Stars with parallax
+  for (const layer of starLayers) {
+    for (const s of layer.stars) {
+      const twinkle = Math001 * s.freq + s.phase) * 0.5 + 0.5;
+      ctx.globalAlpha = layer.alpha * (0.3 + twinkle * 0.7);
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(s.x + shakeX * layer.parallax, s.y + shakeY * layer.parallax, layer.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ============================================================
+// 📐 GROUND GRID (Sci-Fi)
+// ============================================================
+function drawGroundGrid(t) {
+  const horizonY = H * 0.86;
+  const gridHeight = H * 0.14;
+  const cols = 20;
+  const rows = 6;
+  
+  ctx.strokeStyle = 'rgba(80, 200, 255, 0.12)';
+  ctx.lineWidth = 0.5;
+  
+  // Horizontal lines (perspective)
+  for (let i = 0; i <= rows; i++) {
+    const p = i / rows;
+    const y = horizonY + p * gridHeight * (1 + p * 0.5);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
+  }
+  
+  // Vertical lines (converging to horizon)
+  const vpX = W / 2;
+  for (let i = 0; i <= cols; i++) {
+    const p = i / cols;
+    const botX = p * W;
+    ctx.beginPath();
+    ctx.moveTo(vpX + (botX - vpX) * 0.3, horizonY);
+    ctx.lineTo(botX, H);
+    ctx.stroke();
+  }
+  
+  // Horizon glow
+  const hg = ctx.createLinearGradient(0, horizonY - 30, 0, horizonY + 20);
+  hg.addColorStop(0, 'rgba(80, 200, 255, 0)');
+  hg.addColorStop(0.6, 'rgba(80, 200, 255, 0.15)');
+  hg.addColorStop(1, 'rgba(80, 200, 255, 0)');
+  ctx.fillStyle = hg;
+  ctx.fillRect(0, horizonY - 30, W, 50);
+}
+
+// ============================================================
+// ☄️ METEOR LOGIC
+// ============================================================
+function updateMeteors(dt) {
+  for (let i = meteors.length - 1; i >= 0; i--) {
+    const m = meteors[i];
+    
+    if (m.mode === 'falling') {
+      m.vy += 0.06 * dt;
+      m.vx *= 0.995;
+      m.vy *= 0.998;
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      m.spin += m.spinSpeed * dt;
+      
+      m.trail.push({ x: m.x, y: m.y, life: 1 });
+      if (m.trail.length > m.maxTrail) m.trail.shift();
+      
+      for (let j = 0; j < m.trail.length; j++) {
+        m.trail[j].life *= 0.88;
+      }
+      
+      if (m.y > H * 0.28) m.mode = 'attracting';
+      
+    } else if (m.mode === 'attracting') {
+      const target = pyramidTargets[m.target];
+      if (!target) { meteors.splice(i, 1); continue; }
+      
+      const dx = target.x - m.x;
+      const dy = target.y - m.y;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      
+      if (dist < 5) {
+        // Settle
+        target.settled = true;
+        target.settleTime = performance.now();
+        settled.push({
+          x: target.x,
+          y: target.y,
+          size: target.size,
+          hue: target.hue,
+          t: target.t,
+          phase: Math.random() * Math.PI * 2
+        });
+        builtCount++;
+        
+        spawnDust(target.x, target.y, target.hue, 5, 3);
+        shakeAmount = Math.max(shakeAmount, 2.5);
+        
+        meteors.splice(i, 1);
+        continue;
+      }
+      
+      // Bezier-like attraction
+      m.vx += dx * 0.008 * dt;
+      m.vy += dy * 0.008 * dt;
+      m.vx *= 0.93;
+      m.vy *= 0.93;
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      m.spin += 0.2 * dt;
+      
+      m.trail.push({ x: m.x, y: m.y, life: 1 });
+      if (m.trail.length > m.maxTrail) m.trail.shift();
+      
+      for (let j = 0; j < m.trail.length; j++) {
+        m.trail[j].life *= 0.9;
+      }
+    }
+    
+    // Remove if too far
+    if (m.x < -300 || m.x > W + 300 || m.y > H + 300) {
+      meteors.splice(i, 1);
+    }
+  }
+}
+
+function drawMeteors() {
+  for (const m of meteors) {
+    // Trail — multi-color
+    for (let i = 0; i < m.trail.length; i++) {
+      const tr = m.trail[i];
+      const frac = i / m.trail.length;
+      const alpha = frac * 0.65;
+      const radius = m.size * frac * 0.85;
+      if (radius < 0.3) continue;
+      
+      const trailHue = m.hue + frac * 40;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = hsl(trailHue, 100, 65);
+      ctx.shadowBlur = 15 * frac;
+      ctx.shadowColor = hsl(trailHue, 100, 60);
+      ctx.beginPath();
+      ctx.arc(tr.x, tr.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    // Core glow
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = hsl(m.hue, 100, 65);
+    ctx.shadowBlur = 25;
+    ctx.shadowColor = hsl(m.hue, 100, 60);
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.size * 1.6, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // White core
+    ctx.fillStyle = '#fff';
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#fff';
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.size * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+}
+
+// ============================================================
+// 🏛️ SETTLED PARTICLES
+// ============================================================
+function drawSettled(t, dt) {
+  for (const p of settled) {
+    p.phase += 0.06 * dt;
+    const pulse = Math.sin(p.phase) * 0.35 + 0.65;
+    const radius = p.size * pulse;
+    
+    ctx.globalAlpha = 0.85 + pulse * 0.15;
+    ctx.fillStyle = hsl(p.hue, 100, 60);
+    ctx.shadowBlur = 18 * pulse;
+    ctx.shadowColor = hsl(p.hue, 100, 65);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // White core
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = hsl(p.hue, 100, 75);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+}
+
+// ============================================================
+// 💫 DUST
+// ============================================================
+function updateDrawDust(dt) {
+  for (let i = dust.length - 1; i >= 0; i--) {
+    const d = dust[i];
+    d.vx *= 0.95;
+    d.vy *= 0.95;
+    d.vy += d.gravity * dt;
+    d.x += d.vx * dt;
+    d.y += d.vy * dt;
+    d.life -= d.decay * dt;
+    
+    if (d.life <= 0) { dust.splice(i, 1); continue; }
+    
+    ctx.globalAlpha = d.life * d.life;
+    ctx.fillStyle = hsl(d.hue, 100, 65);
+    ctx.shadowBlur = 12 * d.life;
+    ctx.shadowColor = hsl(d.hue, 100, 60);
+    ctx.beginPath();
+    ctx.arc(d.x, d.y, d.size * d.life, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+}
+
+// ============================================================
+// 🌊 SHOCKWAVES
+// ============================================================
+function updateDrawShockwaves(dt) {
+  for (let i = shockwaves.length - 1; i >= 0; i--) {
+    const sw = shockwaves[i];
+    sw.r += 18 * dt;
+    sw.life -= sw.decay * dt;
+    sw.width *= 0.96;
+    
+    if (sw.life <= 0) { shockwaves.splice(i, 1); continue; }
+    
+    ctx.globalAlpha = sw.life * sw.life * 0.9;
+    ctx.strokeStyle = hsl(sw.hue, 100, 70);
+    ctx.lineWidth = sw.width;
+    ctx.shadowBlur = 25;
+    ctx.shadowColor = hsl(sw.hue, 100, 65);
+    ctx.beginPath();
+    ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+}
+
+// ============================================================
+// ✨ BLOOM (light bloom overlay)
+// ============================================================
+function drawBloom() {
+  // Simple bloom: overlay gradient based on activity
+  if (settled.length < 5) return;
+  
+  const intensity = Math.min(settled.length / totalPoints, 1) * 0.06;
+  ctx.globalAlpha = intensity;
+  ctx.globalCompositeOperation = 'lighter';
+  const b = ctx.createRadialGradient(W/2, H*0.6, 0, W/2, H*0.6, H*0.8);
+  b.addColorStop(0, 'rgba(100, 200, 255, 0.5)');
+  b.addColorStop(1, 'rgba(100, 200, 255, 0)');
+  ctx.fillStyle = b;
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 1;
+}
+
+// ============================================================
+// 🎞️ VIGNETTE
+// ============================================================
+function drawVignette() {
+  const v = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.2, W/2, H/2, Math.max(W,H)*0.75);
+  v.addColorStop(0, 'rgba(0,0,0,0)');
+  v.addColorStop(1, 'rgba(0,0,0,0.7)');
+  ctx.fillStyle = v;
+  ctx.fillRect(0, 0, W, H);
+}
+
+// ============================================================
+// 🎬 STATE MACHINE
+// ============================================================
+function updateState(now) {
+  if (phase === 'building') {
+    if (builtCount >= totalPoints && meteors.length === 0) {
+      phase = 'complete';
+      phaseEl.textContent = 'RESONATE';
+      phaseTime = now;
+      
+      const cx = W / 2;
+      const cy = H * 0.55;
+      
+      spawnShockwave(cx, cy, 195);
+      spawnShockwave(cx, cy, 280);
+      spawnShockwave(cx, cy, 35);
+      
+      shakeAmount = 25;
+      flashAlpha = 0.6;
+      
+      for (let i = 0; i < pyramidTargets.length; i += 4) {
+        const t = pyramidTargets[i];
+        spawnDust(t.x, t.y, t.hue, 4, 5);
+      }
+    }
+  } 
+  else if (phase === 'complete') {
+    if (now - phaseTime > 3000) {
+      phase = 'collapse';
+      phaseEl.textContent = 'COLLAPSE';
+      phaseTime = now;
+      
+      for (const p of settled) {
+        dust.push({
+          x: p.x, y: p.y,
+          vx: (p.x - W/2) * 0.04 + (Math.random() - 0.5) * 6,
+          vy: (Math.random() - 0.5) * 6 - 2,
+          size: p.size * 1.8,
+          hue: p.hue,
+          life: 1,
+          decay: 0.006 + Math.random() * 0.008,
+          gravity: 0.3
+        });
+      }
+      settled = [];
+      shakeAmount = 35;
+    }
+  }
+  else if (phase === 'collapse') {
+    if (now - phaseTime > 2200 && dust.length < 40) {
+      resetScene();
+    }
+  }
+}
+
+// ============================================================
+// 📱 INTERACTION
+// ============================================================
+canvas.addEventListener('touchstart', (e) => {
   e.preventDefault();
-  var t = e.touches[0];
-  var x = t.clientX;
-  var y = t.clientY;
-  createShockwave(x, y, 200 + Math.random() * 120);
-  createDust(x, y, 200 + Math.random() * 120, 30, 6);
-  shakeAmount = 15;
+  const t = e.touches[0];
+  spawnShockwave(t.clientX, t.clientY, 195 + Math.random() * 100);
+  spawnDust(t.clientX, t.clientY, 195 + Math.random() * 100, 25, 6);
+  shakeAmount = 12;
 }, { passive: false });
 
-canvas.addEventListener('mousedown', function(e) {
-  createShockwave(e.clientX, e.clientY, 200 + Math.random() * 120);
-  createDust(e.clientX, e.clientY, 200 + Math.random() * 120, 30, 6);
-  shakeAmount = 15;
+canvas.addEventListener('mousedown', (e) => {
+  spawnShockwave(e.clientX, e.clientY, 195 + Math.random() * 100);
+  spawnDust(e.clientX, e.clientY, 195 + Math.random() * 100, 25, 6);
+  shakeAmount = 12;
 });
 
-document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
-document.addEventListener('dblclick', function(e) { e.preventDefault(); }, { passive: false });
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
 
-// ==========================================
-// 🚀 بدء التشغيل
-// ==========================================
-initBackground();
-buildPyramidPoints();
+// ============================================================
+// 🚀 START
+// ============================================================
+buildPyramid();
 totalPoints = pyramidTargets.length;
-phaseEl.textContent = 'بناء';
-lastFrameTime = performance.now();
-requestAnimationFrame(loop);
-
+phaseEl.textContent = 'CONSTRUCT';
+lastFrame = performance.now();
+requestAnimationFrame(render);
 </script>
 </body>
 </html>
