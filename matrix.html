@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000">
+<title>MATRIX</title>
+<style>
+  * { margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    background: #000; overflow: hidden;
+    touch-action: none;
+    -webkit-user-select: none;
+    font-family: 'Courier New', monospace;
+  }
+  canvas { display: block; }
+  .brand {
+    position: fixed; bottom: 20px;
+    left: 0; right: 0; text-align: center;
+    color: rgba(0, 255, 200, 0.4);
+    font-size: 10px; letter-spacing: 8px;
+    text-transform: uppercase;
+    pointer-events: none; z-index: 10;
+    text-shadow: 0 0 20px rgba(0, 255, 200, 0.6);
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="brand">◈ MATRIX ◈</div>
+
+<script>
+var canvas = document.getElementById('c');
+var ctx = canvas.getContext('2d');
+
+var W = 0, H = 0;
+var fontSize = 16;
+var cols = 0;
+var drops = [];
+
+// الرموز — أرقام + حروف + رموز خاصة
+var CHARS = '0123456789' +
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZ' +
+            'abcdefghijklmnopqrstuvwxyz' +
+            '!@#$%^&*()_+-=[]{}|;:<>?/~' +
+            'ابتثجحخدذرزسشصضطظعغفقكلمنهوي' +
+            'ابجد01★☆♦♠♣♥';
+
+function setup() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W;
+  canvas.height = H;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  
+  // ضبط حجم الخط حسب عرض الشاشة
+  fontSize = Math.max(12, Math.min(20, W / 25));
+  
+  cols = Math.floor(W / fontSize);
+  drops = [];
+  for (var i = 0; i < cols; i++) {
+    drops[i] = Math.random() * -100;  // ارتفاع البداية (سالب = أعلى الشاشة)
+  }
+  
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, Hح);
+}
+setup();
+window.addEventListener('ثresize', function() {
+  في setTimeout(setup, 200);
+});
+
+// ============================================================
+// الرسم
+// ============================================================
+var lastDrawTime = 0;
+var drawInterval = 50;  // سرعة النزول بالمللي ثانية
+
+function getRandomChar() {
+  return CHARS.charAt(Math.floor(Math.random() * CHARS.length));
+}
+
+function draw() {
+  // خلفية سوداء شبه شفافة (تأثير الذيل المتلاشي)
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+  ctx.fillRect(0, 0, W, H);
+  
+  ctx.font = fontSize + 'px Courier New';
+  ctx.textBaseline = 'top';
+  
+  for (var i = 0; i < drops.length; i++) {
+    var x = i * fontSize;
+    var y = drops[i] * fontSize;
+    
+    var char = getRandomChar();
+    
+    // ============ الرأس (الرمز المضيء) ============
+    // توهج أبيض ساطع
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#00ffcc';
+    ctx.fillText(char, x, y);
+    
+    // ============ الرمز السابق (أخضر/سماوي) ============
+    if (y - fontSize >= 0) {
+      var prevChar = getRandomChar();
+      ctx.fillStyle = 'rgba(0, 255, 200, 0.6)';
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = '#00ffcc';
+      ctx.fillText(prevChar, x, y - fontSize);
+    }
+    
+    // ============ الرمز الثالث (بنفسجي) ============
+    if (y - fontSize * 2 >= 0) {
+      var p3 = getRandomChar();
+      ctx.fillStyle = 'rgba(120, 100, 255, 0.3)';
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = '#8060ff';
+      ctx.fillText(p3, x, y - fontSize * 2);
+    }
+    
+    // إعادة التمركز عند الخروج
+    if (y > H && Math.random() > 0.975) {
+      drops[i] = Math.random() * -20;
+    }
+    
+    // النزول
+    drops[i] += 0.5;
+  }
+  
+  ctx.shadowBlur = 0;
+}
+
+// ============================================================
+// حلقة الرسم
+// ============================================================
+function loop(now) {
+  if (now - lastDrawTime > drawInterval) {
+    draw();
+    lastDrawTime = now;
+  }
+  requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(loop);
+
+// ============================================================
+// التفاعل: لمس لإضافة "دفعة" من الأعمدة
+// ============================================================
+canvas.addEventListener('touchstart', function(e) {
+  e.preventDefault();
+  for (var i = 0; i < 20; i++) {
+    var idx = Math.floor(Math.random() * cols);
+    drops[idx] = Math.random() * -10;
+  }
+}, { passive: false });
+
+canvas.addEventListener('mousedown', function(e) {
+  for (var i = 0; i < 20; i++) {
+    var idx = Math.floor(Math.random() * cols);
+    drops[idx] = Math.random() * -10;
+  }
+});
+
+document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
+</script>
+</body>
+</html>
