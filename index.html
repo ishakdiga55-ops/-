@@ -5,47 +5,64 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>أشكال</title>
 <style>
+  * { margin: 0; padding: 0; }
   html, body {
-    margin: 0; padding: 0;
     width: 100%; height: 100%;
     background: #000; overflow: hidden;
     touch-action: none;
   }
-  #c { display: block; position: fixed; top:0; left:0; }
+  canvas { display: block; }
   #n {
-    position: fixed; top: 30px; width: 100%; text-align: center;
+    position: fixed; top: 30px; left: 0; right: 0;
+    text-align: center;
     color: #fff; font-size: 20px; font-family: sans-serif;
-    font-weight: bold; text-shadow: 0 0 20px #4af;
+    font-weight: bold;
+    text-shadow: 0 0 20px #4af, 0 0 40px #4af;
     pointer-events: none;
+    z-index: 100;
+  }
+  #status {
+    position: fixed; bottom: 30px; left: 0; right: 0;
+    text-align: center;
+    color: #0f0; font-size: 14px; font-family: monospace;
+    pointer-events: none;
+    z-index: 100;
   }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="n">مثلث</div>
+<div id="n">مثلث ✦</div>
+<div id="status">جاري التحميل...</div>
 
 <script>
 var canvas = document.getElementById('c');
 var ctx = canvas.getContext('2d');
 var nameEl = document.getElementById('n');
-var W = 0, H = 0;
+var statusEl = document.getElementById('status');
+var W = window.innerWidth;
+var H = window.innerHeight;
 
-function resize() {
-  W = window.innerWidth;
-  H = window.innerHeight;
-  canvas.width = W;
-  canvas.height = H;
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, W, H);
-}
-resize();
-window.onresize = resize;
+// دقة عالية للشاشات الحديثة
+var dpr = window.devicePixelRatio || 1;
+if (dpr > 2) dpr = 2;
+canvas.width = W * dpr;
+canvas.height = H * dpr;
+canvas.style.width = W + 'px';
+canvas.style.height = H + 'px';
+ctx.scale(dpr, dpr);
 
-// ============ الجسيمات ============
+ctx.fillStyle = '#000';
+ctx.fillRect(0, 0, W, H);
+
+// ============ البيانات ============
 var particles = [];
-var COLORS = ['#00d4ff', '#0080ff', '#00ffcc', '#a855f7', '#ec4899', '#fbbf24', '#22d3ee', '#f472b6'];
+var COLORS = ['#00d4ff', '#0080ff', '#00ffcc', '#a855f7', '#ec4899', '#fbbf24'];
+var SHAPES = ['مثلث ✦', 'مربع ◆', 'دائرة ●', 'نجمة ★', 'قلب ♥', 'سداسي ⬡'];
+var currentShape = 0;
+var frameCount = 0;
 
-// نقاط الشكل
+// ============ حساب نقاط الشكل ============
 function getPoints(shape, cx, cy, size, count) {
   var pts = [];
   var i, t, a;
@@ -109,7 +126,7 @@ function getPoints(shape, cx, cy, size, count) {
       var hy = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
       pts.push({x: cx + hx * (size / 16), y: cy + hy * (size / 16)});
     }
-  } else if (shape === 5) {
+  } else {
     // سداسي
     var v = [];
     for (i = 0; i < 6; i++) {
@@ -124,46 +141,28 @@ function getPoints(shape, cx, cy, size, count) {
       var p2 = v[(idx + 1) % 6];
       pts.push({x: p1.x + (p2.x - p1.x) * local, y: p1.y + (p2.y - p1.y) * local});
     }
-  } else if (shape === 6) {
-    // حلزوني
-    for (i = 0; i < count; i++) {
-      t = i / count;
-      a = t * 5 * Math.PI * 2;
-      var r = t * size;
-      pts.push({x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r});
-    }
-  } else {
-    // لا نهاية
-    for (i = 0; i < count; i++) {
-      t = (i / count) * Math.PI * 2;
-      var x = Math.cos(t) / (1 + Math.sin(t) * Math.sin(t));
-      var y = Math.sin(t) * Math.cos(t) / (1 + Math.sin(t) * Math.sin(t));
-      pts.push({x: cx + x * size * 1.8, y: cy + y * size * 1.8});
-    }
   }
   
   return pts;
 }
 
-var SHAPES = ['مثلث ✦', 'مربع ◆', 'دائرة ●', 'نجمة ★', 'قلب ♥', 'سداسي ⬡', 'حلزوني 🌀', 'لانهاية ∞'];
-var currentShape = 0;
-
+// ============ بناء الشكل ============
 function buildShape() {
   // حرر الجسيمات القديمة
   for (var i = 0; i < particles.length; i++) {
     var p = particles[i];
     if (p.mode === 'shape') {
       p.mode = 'free';
-      p.vx = (p.x - W/2) * 0.1 + (Math.random() - 0.5) * 6;
-      p.vy = (p.y - H/2) * 0.1 + (Math.random() - 0.5) * 6;
-      p.decay = 0.02;
+      p.vx = (p.x - W/2) * 0.15 + (Math.random() - 0.5) * 8;
+      p.vy = (p.y - H/2) * 0.15 + (Math.random() - 0.5) * 8;
+      p.decay = 0.025;
     }
   }
   
-  var size = Math.min(W, H) * 0.28;
+  var size = Math.min(W, H) * 0.3;
   var cx = W / 2;
   var cy = H / 2;
-  var count = 180;
+  var count = 150;
   var points = getPoints(currentShape, cx, cy, size, count);
   var color = COLORS[currentShape % COLORS.length];
   
@@ -178,84 +177,108 @@ function buildShape() {
       vy: 0,
       life: 1,
       decay: 0,
-      size: Math.random() * 2.5 + 2,
+      reached: false,
+      size: 4 + Math.random() * 3,
       color: color,
-      mode: 'shape'
+      mode: 'shape',
+      wobble: Math.random() * Math.PI * 2
     });
   }
   
   nameEl.textContent = SHAPES[currentShape];
+  statusEl.textContent = 'الجسيمات: ' + particles.length;
   currentShape = (currentShape + 1) % SHAPES.length;
   
-  setTimeout(buildShape, 4000);
+  setTimeout(buildShape, 4500);
 }
 
-// انفجار عند اللمس
+// ============ انفجار عند اللمس ============
 function burst(x, y) {
   var color = COLORS[Math.floor(Math.random() * COLORS.length)];
   for (var i = 0; i < 20; i++) {
     var angle = Math.random() * Math.PI * 2;
-    var speed = Math.random() * 6 + 2;
+    var speed = Math.random() * 7 + 3;
     particles.push({
       x: x, y: y,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       life: 1,
-      decay: 0.012,
-      size:== Math.random() * 3 + 2,
-=
+      decay: 0.015,
+      reached: true,
+      size: 4 + Math.random() * 3,
       color: color,
-      mode:canvas.addEventListener '('free'
+      mode: 'free',
+      wobble: 0
     });
   }
 }
 
-touch// ============ حلقة الرسم ============
+// ============ حلقة الرسم ============
 function loop() {
-  // خلفية شبه شفافة
+  frameCount++;
+  statusEl.textContent = 'الجسيمات: ' + particles.length + ' | إطار: ' + frameCount;
+  
+  // خلفية شبه شفافة (تأثير ذيل)
   ctx.globalAlpha = 1;
   ctx.shadowBlur = 0;
-  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
   ctx.fillRect(0, 0, W, H);
   
-  // تحديث ورسم
+  // تحديث ورسم الجسيمات
   for (var i = particles.length - 1; i >= 0; i--) {
     var p = particles[i];
     
     if (p.mode === 'shape') {
       var dx = p.tx - p.x;
       var dy = p.ty - p.y;
-      p.vx = (p.vx + dx * 0.1) * 0.82;
-      p.vy = (p.vy + dy * 0.1) * 0.82;
-      p.x += p.vx;
-      p.y += p.vy;
-      if (Math.abs(dx) < 5 && Math.abs(dy) < 5 && p.decay === 0) {
-        p.decay = 0.006;
+      var dist = Math.sqrt(dx*dx + dy*dy);
+      
+      if (dist > 3) {
+        // انجذاب نحو الهدف
+        p.vx = (p.vx + dx * 0.15) * 0.7;
+        p.vy = (p.vy + dy * 0.15) * 0.7;
+        p.x += p.vx;
+        p.y += p.vy;
+      } else {
+        // وصل الهدف - اهتزاز خفيف
+        p.wobble += 0.15;
+        p.x = p.tx + Math.cos(p.wobble) * 2;
+        p.y = p.ty + Math.sin(p.wobble) * 2;
+        p.reached = true;
+        
+        // ابدأ التلاشي بعد وقت
+        if (!p.fadeStart) {
+          p.fadeStart = Date.now();
+        } else if (Date.now() - p.fadeStart > 1500) {
+          p.life -= 0.02;
+        }
       }
-      if (p.decay > 0) p.life -= p.decay;
     } else {
+      // حركة حرة
       p.vx *= 0.98;
       p.vy *= 0.98;
-      p.vy += 0.08;
+      p.vy += 0.1;
       p.x += p.vx;
       p.y += p.vy;
       p.life -= p.decay;
     }
     
+    // حذف الميت
     if (p.life <= 0) {
       particles.splice(i, 1);
       continue;
     }
     
+    // رسم الجسيم
     var alpha = p.life;
     if (alpha > 1) alpha = 1;
     if (alpha < 0) alpha = 0;
     var radius = p.size * alpha;
-    if (radius < 0.3) continue;
+    if (radius < 1) continue;
     
     ctx.globalAlpha = alpha;
     ctx.fillStyle = p.color;
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = 12;
     ctx.shadowColor = p.color;
     ctx.beginPath();
     ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
@@ -268,7 +291,8 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-// ============ التفاعل =========start', function(e) {
+// ============ التفاعل ============
+canvas.addEventListener('touchstart', function(e) {
   e.preventDefault();
   for (var i = 0; i < e.touches.length; i++) {
     burst(e.touches[i].clientX, e.touches[i].clientY);
@@ -288,9 +312,10 @@ canvas.addEventListener('mousedown', function(e) {
 
 document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
 
-// ============ بدء ============
+// ============ بدء التشغيل ============
+statusEl.textContent = 'حلقة الرسم تعمل...';
 requestAnimationFrame(loop);
-setTimeout(buildShape, 300);
+buildShape();
 </script>
 </body>
 </html>
