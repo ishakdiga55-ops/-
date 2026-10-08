@@ -3,319 +3,360 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>أشكال</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000">
+<title>سماء النجوم ✨</title>
 <style>
-  * { margin: 0; padding: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
     width: 100%; height: 100%;
-    background: #000; overflow: hidden;
+    background: #000;
+    overflow: hidden;
     touch-action: none;
+    -webkit-user-select: none;
+    font-family: -apple-system, sans-serif;
   }
   canvas { display: block; }
-  #n {
-    position: fixed; top: 30px; left: 0; right: 0;
+  #title {
+    position: fixed;
+    top: 20px;
+    left: 0; right: 0;
     text-align: center;
-    color: #fff; font-size: 20px; font-family: sans-serif;
-    font-weight: bold;
-    text-shadow: 0 0 20px #4af, 0 0 40px #4af;
+    color: rgba(255,255,255,0.7);
+    font-size: 16px;
+    font-weight: 300;
+    letter-spacing: 3px;
+    text-shadow: 0 0 20px rgba(100,200,255,0.6);
     pointer-events: none;
-    z-index: 100;
-  }
-  #status {
-    position: fixed; bottom: 30px; left: 0; right: 0;
-    text-align: center;
-    color: #0f0; font-size: 14px; font-family: monospace;
-    pointer-events: none;
-    z-index: 100;
+    z-index: 10;
   }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="n">مثلث ✦</div>
-<div id="status">جاري التحميل...</div>
+<div id="title">⭐ بناء الهرم ⭐</div>
 
 <script>
 var canvas = document.getElementById('c');
 var ctx = canvas.getContext('2d');
-var nameEl = document.getElementById('n');
-var statusEl = document.getElementById('status');
 var W = window.innerWidth;
 var H = window.innerHeight;
 
-// دقة عالية للشاشات الحديثة
-var dpr = window.devicePixelRatio || 1;
-if (dpr > 2) dpr = 2;
+// دقة عالية
+var dpr = Math.min(window.devicePixelRatio || 1, 2);
 canvas.width = W * dpr;
 canvas.height = H * dpr;
 canvas.style.width = W + 'px';
 canvas.style.height = H + 'px';
 ctx.scale(dpr, dpr);
 
-ctx.fillStyle = '#000';
-ctx.fillRect(0, 0, W, H);
+// ==========================================
+// 🎨 الألوان
+// ==========================================
+var COLORS = [
+  '#00d4ff', '#4facfe', '#00f2fe', '#43e97b', 
+  '#38f9d7', '#fbbf24', '#f59e0b', '#f472b6',
+  '#a855f7', '#818cf8'
+];
 
-// ============ البيانات ============
-var particles = [];
-var COLORS = ['#00d4ff', '#0080ff', '#00ffcc', '#a855f7', '#ec4899', '#fbbf24'];
-var SHAPES = ['مثلث ✦', 'مربع ◆', 'دائرة ●', 'نجمة ★', 'قلب ♥', 'سداسي ⬡'];
-var currentShape = 0;
+// ==========================================
+// 📐 حساب نقاط الهرم
+// ==========================================
+function buildPyramidPoints() {
+  var points = [];
+  var baseY = H * 0.85;
+  var tipY = H * 0.25;
+  var pyramidW = Math.min(W * 0.85, H * 0.7);
+  var pyramidH = baseY - tipY;
+  var cx = W / 2;
+  
+  // طبقات الهرم
+  var rows = 20;
+  
+  for (var row = 0; row < rows; row++) {
+    var t = row / (rows - 1);
+    var y = tipY + t * pyramidH;
+    var rowWidth = t * pyramidW;
+    
+    // كل طبقة أوسع من السابقة
+    var countInRow = Math.max(2, Math.floor(row * 2 + 2));
+    
+    // نقاط على جانبي الهرم فقط (لا نملأ الداخل)
+    for (var j = 0; j < countInRow; j++) {
+      var frac = j / (countInRow - 1);
+      var x = cx - rowWidth / 2 + frac * rowWidth;
+      // كل نقطة لها حجم مختلف قليلاً
+      points.push({
+        x: x + (Math.random() - 0.5) * 3,
+        y: y + (Math.random() - 0.5) * 3,
+        size: 3 + Math.random() * 2,
+        hue: 180 + t * 60 + Math.random() * 30
+      });
+    }
+  }
+  
+  return points;
+}
+
+// ==========================================
+// ⭐ نظام النجوم
+// ==========================================
+var stars = [];        // النجوم الساقطة
+var pyramid = [];      // جسيمات الهرم المتراكم
+var pyramidPoints = []; // نقاط الهرم المستهدفة
+var nextPointIndex = 0; // النقطة التالية للبناء
+var buildState = 'building'; // 'building' أو 'collapsing'
+var buildTimer = 0;
+
+var MAX_STARS = 300;
+
+// إنشاء نقطة الهرم
+function rebuildPyramidPoints() {
+  pyramidPoints = buildPyramidPoints();
+  nextPointIndex = 0;
+}
+
+// ==========================================
+// 🌟 نجمة ساقطة
+// ==========================================
+function createStar() {
+  var x = Math.random() * W;
+  var y = -20;
+  var speed = 2 + Math.random() * 3;
+  var angle = (Math.random() - 0.5) * 0.5; // ميل خفيف
+  
+  return {
+    x: x,
+    y: y,
+    vx: Math.sin(angle) * speed * 0.5,
+    vy: speed,
+    size: 2 + Math.random() * 3,
+    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    trail: [],           // ذيل النجمة
+    life: 1,
+    targetIndex: -1,     // النقطة التي ستتوجه إليها
+    mode: 'falling',     // 'falling' → 'moving' → 'settled'
+    twinkle: Math.random() * Math.PI * 2
+  };
+}
+
+// ==========================================
+// 🎬 حلقة الرسم
+// ==========================================
+var lastStarTime = 0;
 var frameCount = 0;
 
-// ============ حساب نقاط الشكل ============
-function getPoints(shape, cx, cy, size, count) {
-  var pts = [];
-  var i, t, a;
-  
-  if (shape === 0) {
-    // مثلث
-    var v = [];
-    for (i = 0; i < 3; i++) {
-      a = -Math.PI/2 + i * 2 * Math.PI / 3;
-      v.push({x: cx + Math.cos(a) * size, y: cy + Math.sin(a) * size});
-    }
-    for (i = 0; i < count; i++) {
-      t = (i / count) * 3;
-      var side = Math.floor(t) % 3;
-      var local = t - Math.floor(t);
-      var p1 = v[side];
-      var p2 = v[(side + 1) % 3];
-      pts.push({x: p1.x + (p2.x - p1.x) * local, y: p1.y + (p2.y - p1.y) * local});
-    }
-  } else if (shape === 1) {
-    // مربع
-    for (i = 0; i < count; i++) {
-      t = i / count;
-      var x, y;
-      if (t < 0.25) { x = cx - size + t * 4 * size; y = cy - size; }
-      else if (t < 0.5) { x = cx + size; y = cy - size + (t - 0.25) * 4 * size; }
-      else if (t < 0.75) { x = cx + size - (t - 0.5) * 4 * size; y = cy + size; }
-      else { x = cx - size; y = cy + size - (t - 0.75) * 4 * size; }
-      pts.push({x: x, y: y});
-    }
-  } else if (shape === 2) {
-    // دائرة
-    for (i = 0; i < count; i++) {
-      a = (i / count) * Math.PI * 2;
-      pts.push({x: cx + Math.cos(a) * size, y: cy + Math.sin(a) * size});
-    }
-  } else if (shape === 3) {
-    // نجمة
-    var spikes = 5;
-    var outer = size, inner = size * 0.4;
-    var step = Math.PI / spikes;
-    var verts = [];
-    for (i = 0; i < spikes * 2; i++) {
-      var r = (i % 2 === 0) ? outer : inner;
-      a = i * step - Math.PI / 2;
-      verts.push({x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r});
-    }
-    for (i = 0; i < count; i++) {
-      t = (i / count) * verts.length;
-      var idx = Math.floor(t) % verts.length;
-      var local = t - Math.floor(t);
-      var p1 = verts[idx];
-      var p2 = verts[(idx + 1) % verts.length];
-      pts.push({x: p1.x + (p2.x - p1.x) * local, y: p1.y + (p2.y - p1.y) * local});
-    }
-  } else if (shape === 4) {
-    // قلب
-    for (i = 0; i < count; i++) {
-      t = (i / count) * Math.PI * 2;
-      var hx = 16 * Math.pow(Math.sin(t), 3);
-      var hy = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
-      pts.push({x: cx + hx * (size / 16), y: cy + hy * (size / 16)});
-    }
-  } else {
-    // سداسي
-    var v = [];
-    for (i = 0; i < 6; i++) {
-      a = i * Math.PI / 3 - Math.PI / 2;
-      v.push({x: cx + Math.cos(a) * size, y: cy + Math.sin(a) * size});
-    }
-    for (i = 0; i < count; i++) {
-      t = (i / count) * 6;
-      var idx = Math.floor(t) % 6;
-      var local = t - Math.floor(t);
-      var p1 = v[idx];
-      var p2 = v[(idx + 1) % 6];
-      pts.push({x: p1.x + (p2.x - p1.x) * local, y: p1.y + (p2.y - p1.y) * local});
-    }
-  }
-  
-  return pts;
-}
-
-// ============ بناء الشكل ============
-function buildShape() {
-  // حرر الجسيمات القديمة
-  for (var i = 0; i < particles.length; i++) {
-    var p = particles[i];
-    if (p.mode === 'shape') {
-      p.mode = 'free';
-      p.vx = (p.x - W/2) * 0.15 + (Math.random() - 0.5) * 8;
-      p.vy = (p.y - H/2) * 0.15 + (Math.random() - 0.5) * 8;
-      p.decay = 0.025;
-    }
-  }
-  
-  var size = Math.min(W, H) * 0.3;
-  var cx = W / 2;
-  var cy = H / 2;
-  var count = 150;
-  var points = getPoints(currentShape, cx, cy, size, count);
-  var color = COLORS[currentShape % COLORS.length];
-  
-  // أنشئ جسيمات جديدة
-  for (var i = 0; i < points.length; i++) {
-    particles.push({
-      x: Math.random() * W,
-      y: Math.random() * H,
-      tx: points[i].x,
-      ty: points[i].y,
-      vx: 0,
-      vy: 0,
-      life: 1,
-      decay: 0,
-      reached: false,
-      size: 4 + Math.random() * 3,
-      color: color,
-      mode: 'shape',
-      wobble: Math.random() * Math.PI * 2
-    });
-  }
-  
-  nameEl.textContent = SHAPES[currentShape];
-  statusEl.textContent = 'الجسيمات: ' + particles.length;
-  currentShape = (currentShape + 1) % SHAPES.length;
-  
-  setTimeout(buildShape, 4500);
-}
-
-// ============ انفجار عند اللمس ============
-function burst(x, y) {
-  var color = COLORS[Math.floor(Math.random() * COLORS.length)];
-  for (var i = 0; i < 20; i++) {
-    var angle = Math.random() * Math.PI * 2;
-    var speed = Math.random() * 7 + 3;
-    particles.push({
-      x: x, y: y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      life: 1,
-      decay: 0.015,
-      reached: true,
-      size: 4 + Math.random() * 3,
-      color: color,
-      mode: 'free',
-      wobble: 0
-    });
-  }
-}
-
-// ============ حلقة الرسم ============
-function loop() {
+function loop(now) {
   frameCount++;
-  statusEl.textContent = 'الجسيمات: ' + particles.length + ' | إطار: ' + frameCount;
   
-  // خلفية شبه شفافة (تأثير ذيل)
+  // خلفية سوداء شبه شفافة (تأثير ذيل للنجوم)
   ctx.globalAlpha = 1;
   ctx.shadowBlur = 0;
-  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
   ctx.fillRect(0, 0, W, H);
   
-  // تحديث ورسم الجسيمات
-  for (var i = particles.length - 1; i >= 0; i--) {
-    var p = particles[i];
+  // ==========================================
+  // 1. إصدار نجوم جديدة (فقط في وضع البناء)
+  // ==========================================
+  if (buildState === 'building' && stars.length < MAX_STARS) {
+    if (now - lastStarTime > 60) {
+      stars.push(createStar());
+      lastStarTime = now;
+    }
+  }
+  
+  // ==========================================
+  // 2. تحديث النجوم
+  // ==========================================
+  for (var i = stars.length - 1; i >= 0; i--) {
+    var s = stars[i];
     
-    if (p.mode === 'shape') {
-      var dx = p.tx - p.x;
-      var dy = p.ty - p.y;
+    if (s.mode === 'falling') {
+      // تسقط
+      s.x += s.vx;
+      است s.y += s.vy;
+      s.twinkle += 0.2;
+      
+      // إضافة نقطة للذيل
+      s.trail.push({ x: s.x, y: s.y });
+      if (s.trail.length > 8) s.trail.shift();
+      
+      // وصلت لمستوى الهرم؟ ابدأ التحرك نحو هدفها
+      if (s.y > H * 0.35 && nextPointIndex < pyramidPoints.length) {
+        s.mode = 'moving';
+        s.targetIndex = nextPointIndex;
+        nextPointIndex++;
+      }
+      
+    } else if (s.mode === 'moving') {
+      // تتحرك نحو نقطتها في الهرم
+      var target = pyramidPoints[s.targetIndex];
+      var dx = target.x - s.x;
+      var dy = target.y - s.y;
       var dist = Math.sqrt(dx*dx + dy*dy);
       
-      if (dist > 3) {
-        // انجذاب نحو الهدف
-        p.vx = (p.vx + dx * 0.15) * 0.7;
-        p.vy = (p.vy + dy * 0.15) * 0.7;
-        p.x += p.vx;
-        p.y += p.vy;
+      if (dist < 3) {
+        //قرت في مكانها
+        s.mode = 'settled';
+        s.x = target.x;
+        s.y = target.y;
+        s.size = target.size;
+        // انقلها لقائمة الهرم
+        pyramid.push(s);
+        stars.splice(i, 1);
+        continue;
       } else {
-        // وصل الهدف - اهتزاز خفيف
-        p.wobble += 0.15;
-        p.x = p.tx + Math.cos(p.wobble) * 2;
-        p.y = p.ty + Math.sin(p.wobble) * 2;
-        p.reached = true;
-        
-        // ابدأ التلاشي بعد وقت
-        if (!p.fadeStart) {
-          p.fadeStart = Date.now();
-        } else if (Date.now() - p.fadeStart > 1500) {
-          p.life -= 0.02;
-        }
+        s.x += dx * 0.08;
+        s.y += dy * 0.08;
+        s.twinkle += 0.3;
       }
-    } else {
-      // حركة حرة
-      p.vx *= 0.98;
-      p.vy *= 0.98;
-      p.vy += 0.1;
-      p.x += p.vx;
-      p.y += p.vy;
-      p.life -= p.decay;
     }
     
-    // حذف الميت
-    if (p.life <= 0) {
-      particles.splice(i, 1);
+    // حذف النجوم الخارجة عن الشاشة
+    if (s.x < -50 || s.x > W + 50 || s.y > H + 50) {
+      stars.splice(i, 1);
       continue;
     }
+  }
+  
+  // ==========================================
+  // 3. رسم النجوم
+  // ==========================================
+  for (var i = 0; i < stars.length; i++) {
+    var s = stars[i];
     
-    // رسم الجسيم
-    var alpha = p.life;
-    if (alpha > 1) alpha = 1;
-    if (alpha < 0) alpha = 0;
-    var radius = p.size * alpha;
-    if (radius < 1) continue;
+    // رسم الذيل
+    for (var t = 0; t < s.trail.length; t++) {
+      var tr = s.trail[t];
+      var alpha = (t / s.trail.length) * 0.5;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = s.color;
+      ctx.shadowBlur = 0;
+      ctx.beginPath();
+      ctx.arc(tr.x, tr.y, s.size * (t / s.trail.length), 0, Math.PI * 2);
+      ctx.fill();
+    }
     
-    ctx.globalAlpha = alpha;
+    // رسم النجمة الرئيسية
+    var twinkleSize = s.size + Math.sin(s.twinkle) * 0.8;
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = s.color;
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = s.color;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, twinkleSize, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // نقطة بيضاء في المركز للتوهج
+    ctx.fillStyle = '#fff';
+    ctx.shadowBlur = 5;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, twinkleSize * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // ==========================================
+  // 4. رسم الهرم المتراكم
+  // ==========================================
+  for (var i = 0; i < pyramid.length; i++) {
+    var p = pyramid[i];
+    p.twinkle += 0.05;
+    var twinkleSize = p.size + Math.sin(p.twinkle) * 0.3;
+    
+    ctx.globalAlpha = 0.9;
     ctx.fillStyle = p.color;
     ctx.shadowBlur = 12;
     ctx.shadowColor = p.color;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, twinkleSize, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // نقطة بيضاء صغيرة
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, twinkleSize * 0.3, 0, Math.PI * 2);
     ctx.fill();
   }
   
+  // ==========================================
+  // 5. إدارة الحالة
+  // ==========================================
+  if (buildState === 'building') {
+    // اكتمل الهرم؟
+    if (nextPointIndex >= pyramidPoints.length && pyramid.length > 0) {
+      buildTimer += 16;
+      if (buildTimer > 2000) { // انتظر ثانيتين
+        buildState = 'collapsing';
+        buildTimer = 0;
+      }
+    }
+  } else if (buildState === 'collapsing') {
+    // انهيار الهرم
+    for (var i = 0; i < pyramid.length; i++) {
+      var p = pyramid[i];
+      p.x += (Math.random() - 0.5) * 3;
+      p.y += 3 + Math.random() * 2;
+      p.size *= 0.99;
+    }
+    
+    // إزالة الجسيمات الخارجة
+    pyramid = pyramid.filter(function(p) {
+      return p.y < H + 30 && p.size > 0.5;
+    });
+    
+    // انتظر ثم ابدأ من جديد
+    buildTimer += 16;
+    if (buildTimer > 1500) {
+      pyramid = [];
+      stars = [];
+      nextPointIndex = 0;
+      rebuildPyramidPoints();
+      buildState = 'building';
+      buildTimer = 0;
+    }
+  }
+  
+  // إعادة تعيين
   ctx.globalAlpha = 1;
   ctx.shadowBlur = 0;
   
   requestAnimationFrame(loop);
 }
 
-// ============ التفاعل ============
+// ==========================================
+// 📱 التفاعل - لمس لإضافة نجوم سريعة
+// ==========================================
 canvas.addEventListener('touchstart', function(e) {
   e.preventDefault();
-  for (var i = 0; i < e.touches.length; i++) {
-    burst(e.touches[i].clientX, e.touches[i].clientY);
-  }
-}, { passive: false });
-
-canvas.addEventListener('touchmove', function(e) {
-  e.preventDefault();
-  for (var i = 0; i < e.touches.length; i++) {
-    burst(e.touches[i].clientX, e.touches[i].clientY);
+  for (var k = 0; k < 10; k++) {
+    stars.push(createStar());
   }
 }, { passive: false });
 
 canvas.addEventListener('mousedown', function(e) {
-  burst(e.clientX, e.clientY);
+  for (var k = 0; k < 15; k++) {
+    stars.push(createStar());
+  }
 });
 
 document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
+window.addEventListener('resize', function() {
+  // إعادة الحساب عند تغيير الحجم
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(dpr, dpr);
+});
 
-// ============ بدء التشغيل ============
-statusEl.textContent = 'حلقة الرسم تعمل...';
+// ==========================================
+// 🚀 بدء التشغيل
+// ==========================================
+rebuildPyramidPoints();
 requestAnimationFrame(loop);
-buildShape();
 </script>
 </body>
 </html>
