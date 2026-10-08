@@ -6,166 +6,86 @@
 <title>MATRIX</title>
 <style>
   * { margin: 0; padding: 0; }
-  html, body {
-    width: 100%; height: 100%;
-    background: #000; overflow: hidden;
-    touch-action: none;
+  html, body { 
+    width: 100%; height: 100%; 
+    background: #000; overflow: hidden; 
   }
   canvas { display: block; }
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
+<canvas id="canvas"></canvas>
 
 <script>
-var canvas = document.getElementById('c');
+var canvas = document.getElementById('canvas');
 var ctx = canvas.getContext('2d');
 
-var W = window.innerWidth;
-var H = window.innerHeight;
-canvas.width = W;
-canvas.height = H;
+var width = canvas.width = window.innerWidth;
+var height = canvas.height = window.innerHeight;
 
-// حجم الخط
-var fontSize = 16;
-var cols = Math.floor(W / fontSize);
+// أعمدة الأمطار
+var columns = Math.floor(width / 20) + 1;
+var drops = [];
 
-// الرموز — أرقام وحروف
-var CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZابتثجحخدذرزسشصضطظعغفقكلمنهوي★☆♦♠♣♥';
+// الرموز (يابانية + أرقام — مثل الماتريكس الأصلي)
+var chars = 'アカサタナハマヤラワイキシチニヒミリウクスツヌフムユルエケセテネヘメレオコソトノホモヨロ0123456789'.split('');
 
-// كل عمود له:
-// - x: الموقع الأفقي
-// - y: الموقع الرأسي الحالي
-// - speed: سرعة النزول
-// - trail: الرموز المتروكة خلفه (الذيل)
-var columns = [];
-
-// إنشاء الأعمدة
-for (var i = 0; i < cols; i++) {
-  columns.push({
-    x: i * fontSize,
-    y: Math.random() * -H,       // تبدأ من فوق الشاشة
-    speed: 2 + Math.random() * 3, // سرعة النزول
-    trail: []                     // الذيل
-  });
+// كل عمود له موقعه وسرعته
+for (var x = 0; x < columns; x++) {
+  drops[x] = {
+    y: Math.random() * -100,       // بداية فوق الشاشة
+    speed: 0.5 + Math.random() * 1.5 // سرعة عشوائية
+  };
 }
 
-// اختيار رمز عشوائي
-function randChar() {
-  return CHARS.charAt(Math.floor(Math.random() * CHARS.length));
-}
+// الرسم
+function draw() {
+  // خلفية شبه شفافة (تعمل كذيل متلاشي)
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+  ctx.fillRect(0, 0, width, height);
 
-// حلقة الرسم
-function loop() {
-  // خلفية سوداء شبه شفافة (تأثير الذيل المتلاشي)
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
-  ctx.fillRect(0, 0, W, H);
+  // نص أخضر
+  ctx.fillStyle = '#0F0';
+  ctx.font = '15px monospace';
 
-  ctx.font = 'bold ' + fontSize + 'px Courier New';
-  ctx.textBaseline = 'top';
-
-  for (var i = 0; i < columns.length; i++) {
-    var col = columns[i];
+  for (var i = 0; i < drops.length; i++) {
+    // رمز عشوائي
+    var text = chars[Math.floor(Math.random() * chars.length)];
     
-    // اختيار رمز عشوائي للرأس
-    var char = randChar();
+    // ارسمه
+    ctx.fillText(text, i * 20, drops[i].y * 20);
     
-    // أضف الرأس الحالي للذيل
-    col.trail.unshift({ ch: char, y: col.y });
-    if (col.trail.length > 20) col.trail.pop();
+    // حرّك للأسفل
+    drops[i].y += drops[i].speed;
     
-    // ==== رسم الذيل (من الأقدم للأحدث) ====
-    for (var t = col.trail.length - 1; t >= 0; t--) {
-      var item = col.trail[t];
-      var yPos = item.y;
-      
-      if (yPos < -fontSize || yPos > H + fontSize) continue;
-      
-      if (t === 0) {
-        // الرأس — أبيض ساطع
-        ctx.fillStyle = '#ffffff';
-        ctx.shadowBlur = 15;
-        ctx.shadowColor = '#00ffcc';
-      } else if (t < 3) {
-        // قريب من الرأس — سماوي فاتح
-        ctx.fillStyle = 'rgba(0, 255, 200, 0.9)';
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#00ffcc';
-      } else if (t < 8) {
-        // وسط — سماوي
-        ctx.fillStyle = 'rgba(0, 200, 255, ' + (0.8 - t * 0.05) + ')';
-        ctx.shadowBlur = 6;
-        ctx.shadowColor = '#00c8ff';
-      } else {
-        // بعيد — بنفسجي شفاف
-        var alpha = (20 - t) / 20 * 0.5;
-        ctx.fillStyle = 'rgba(120, 80, 255, ' + alpha + ')';
-        ctx.shadowBlur = 3;
-        ctx.shadowColor = '#8040ff';
-      }
-      
-      ctx.fillText(item.ch, col.x, yPos);
-    }
-    
-    // ==== تحريك العمود ====
-    col.y += col.speed;
-    
-    // ==== إعادة البدء من الأعلى ====
-    if (col.y - col.trail.length * fontSize > H && Math.random() > 0.95) {
-      col.y = -fontSize * 5;
-      col.trail = [];
-      col.speed = 2 + Math.random() * 3;
+    // إعادة للتوزيع عند الخروج
+    if (drops[i].y * 20 > height && Math.random() > 0.975) {
+      drops[i].y = 0;
+      drops[i].speed = 0.5 + Math.random() * 1.5;
     }
   }
   
-  ctx.shadowBlur = 0;
-  
-  requestAnimationFrame(loop);
+  requestAnimationFrame(draw);
 }
 
-// بدء الحلقة
-requestAnimationFrame(loop);
+draw();
 
-// ============================================================
-// لمس = إعادة تشغيل الأعمدة بسرعة
-// ============================================================
-canvas.addEventListener('touchstart', function(e) {
-  e.preventDefault();
-  for (var i = 0; i < columns.length; i++) {
-    if (Math.random() < 0.5) {
-      columns[i].y = Math.random() * -H;
-      columns[i].trail = [];
-    }
-  }
-}, { passive: false });
-
-canvas.addEventListener('mousedown', function(e) {
-  for (var i = 0; i < columns.length; i++) {
-    if (Math.random() < 0.5) {
-      columns[i].y = Math.random() * -H;
-      columns[i].trail = [];
-    }
-  }
-});
-
-document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
-
+// عند تغيير حجم الشاشة
 window.addEventListener('resize', function() {
-  W = window.innerWidth;
-  H = window.innerHeight;
-  canvas.width = W;
-  canvas.height = H;
-  cols = Math.floor(W / fontSize);
-  columns = [];
-  for (var i = 0; i < cols; i++) {
-    columns.push({
-      x: i * fontSize,
-      y: Math.random() * -H,
-      speed: 2 + Math.random() * 3,
-      trail: []
-    });
+  width = canvas.width = window.innerWidth;
+  height = canvas.height = window.innerHeight;
+  columns = Math.floor(width / 20) + 1;
+  drops = [];
+  for (var x = 0; x < columns; x++) {
+    drops[x] = {
+      y: Math.random() * -100,
+      speed: 0.5 + Math.random() * 1.5
+    };
   }
 });
+
+// منع الزوم
+document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
 </script>
 </body>
 </html>
