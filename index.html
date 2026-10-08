@@ -4,76 +4,46 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#000000">
-<title>Particles Pro ✨</title>
+<title>Geometric Particles ✨</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-    background: #000;
-    touch-action: none;
-    -webkit-user-select: none;
-    -webkit-tap-highlight-color: transparent;
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    width: 100%; height: 100%; overflow: hidden;
+    background: #000; touch-action: none;
+    -webkit-user-select: none; -webkit-tap-highlight-color: transparent;
+    font-family: -apple-system, sans-serif;
   }
-  #canvas {
-    display: block;
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-  }
+  #canvas { display: block; position: fixed; inset: 0; }
   #ui {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 40px 20px;
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 13px;
-    letter-spacing: 0.5px;
+    position: fixed; inset: 0; pointer-events: none;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 40px 20px; color: rgba(255,255,255,0.7); font-size: 13px;
   }
-  #hint {
-    text-align: center;
-    font-size: 15px;
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.9);
-    text-shadow: 0 0 20px rgba(100, 200, 255, 0.8);
-    animation: pulse 2.5s ease-in-out infinite;
-    transition: opacity 0.6s;
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 0.5; transform: scale(1); }
-    50% { opacity: 1; transform: scale(1.05); }
+  #shapeName {
+    text-align: center; font-size: 18px; font-weight: 600;
+    color: rgba(255,255,255,0.95);
+    text-shadow: 0 0 20px rgba(100,200,255,0.9);
+    transition: opacity 0.5s;
   }
   #stats {
-    display: flex;
-    justify-content: space-between;
-    font-family: 'SF Mono', monospace;
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.4);
+    display: flex; justify-content: space-between;
+    font-family: 'SF Mono', monospace; font-size: 11px;
+    color: rgba(255,255,255,0.4);
   }
-  #stats span { 
+  #stats span {
     background: rgba(255,255,255,0.05);
-    padding: 4px 8px;
-    border-radius: 6px;
+    padding: 4px 8px; border-radius: 6px;
     backdrop-filter: blur(10px);
   }
-  .fade-out { opacity: 0 !important; }
 </style>
 </head>
 <body>
 <canvas id="canvas"></canvas>
-
 <div id="ui">
-  <div id="hint">المس الشاشة للتفاعل ✨</div>
+  <div id="shapeName">✦ مثلث ✦</div>
   <div id="stats">
-    <span id="fps">60 FPS</span>
+    <span id="fps">-- FPS</span>
     <span id="count">0 جسيم</span>
   </div>
 </div>
@@ -81,33 +51,12 @@
 <script>
 'use strict';
 
-// ==========================================
-// 🚀 نظام الجسيمات الاحترافي
-// ==========================================
-
 const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d', { alpha: false });
-const hint = document.getElementById('hint');
+const ctx = canvas.getContext('2d');
 const fpsEl = document.getElementById('fps');
 const countEl = document.getElementById('count');
+const shapeNameEl = document.getElementById('shapeName');
 
-// ========== إعدادات الأداء ==========
-const CONFIG = {
-  maxParticles: 1500,
-  maxFPS: 60,
-  e trail: 0.18,           // ش.tدة الذيل (0-1)
-ou  gravity: 0.08,
-  friction: 0.985,
-  glowIntensity: 15,
-  hueRange: 60,          // مدى تنوع الألوان
-  baseHue: 200,          // اللون الأساسي (أزرق)
-  particleMinSize: 2,
-  particleMaxSize: 6,
-  autoEmitRate: 0.3,     // معدل الإصدار التلقائي
-  burstCount: 30,        // عدد الجسيمات في الانفجار
-};
-
-// ========== إعداد Canvas عالي الدقة ==========
 let W = 0, H = 0, DPR = 1;
 
 function resize() {
@@ -119,326 +68,439 @@ function resize() {
   canvas.style.width = W + 'px';
   canvas.style.height = H + 'px';
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
 }
-
 resize();
-let resizeTimeout;
-window.addEventListener('resize', () => {
-  clearTimeout(resizeTimeout);
-  resizeTimeout = setTimeout(resize, 150);
-});
-window.addEventListener('orientationchange', () => {
-  setTimeout(resize, 300);
-});
+window.addEventListener('resize', () => setTimeout(() => { resize(); rebuildShape(); }, 150));
+window.addEventListener('orientationchange', () => setTimeout(() => { resize(); rebuildShape(); }, 300));
 
-// ========== فئة الجسيم ==========
-class Particle {
-  constructor(x, y, options = {}) {
-    this.reset(x, y, options);
+// ==========================================
+// 🎨 مُولّدات الأشكال الهندسية
+// ==========================================
+function getShapePoints(shapeName, cx, cy, size) {
+  const points = [];
+  const N = 220; // عدد النقاط في الشكل
+
+  switch (shapeName) {
+    case 'triangle': {
+      // مثلث متساوي الأضلاع
+      const a = -Math.PI / 2;
+      const verts = [];
+      for (let i = 0; i < 3; i++) {
+        verts.push({
+          x: cx + Math.cos(a + i * 2 * Math.PI / 3) * size,
+          y: cy + Math.sin(a + i * 2 * Math.PI / 3) * size
+        });
+      }
+      for (let i = 0; i < N; i++) {
+        const t = i / N * 3;
+        const side = Math.floor(t) % 3;
+        const local = t - Math.floor(t);
+        const p1 = verts[side];
+        const p2 = verts[(side + 1) % 3];
+        points.push({
+          x: p1.x + (p2.x - p1.x) * local,
+          y: p1.y + (p2.y - p1.y) * local
+        });
+      }
+      break;
+    }
+
+    case 'square': {
+      const half = size;
+      const perim = 8 * half;
+      for (let i = 0; i < N; i++) {
+        const t = (i / N) * perim;
+        let x, y;
+        if (t < 2 * half) {
+          x = cx - half + t; y = cy - half;
+        } else if (t < 4 * half) {
+          x = cx + half; y = cy - half + (t - 2 * half);
+        } else if (t < 6 * half) {
+          x = cx + half - (t - 4 * half); y = cy + half;
+        } else {
+          x = cx - half; y = cy + half - (t - 6 * half);
+        }
+        points.push({ x, y });
+      }
+      break;
+    }
+
+    case 'circle': {
+      for (let i = 0; i < N; i++) {
+        const a = (i / N) * Math.PI * 2;
+        points.push({
+          x: cx + Math.cos(a) * size,
+          y: cy + Math.sin(a) * size
+        });
+      }
+      break;
+    }
+
+    case 'star': {
+      const spikes = 5;
+      const outer = size;
+      const inner = size * 0.4;
+      const step = Math.PI / spikes;
+      const verts = [];
+      for (let i = 0; i < spikes * 2; i++) {
+        const r = i % 2 === 0 ? outer : inner;
+        const a = i * step - Math.PI / 2;
+        verts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r });
+      }
+      for (let i = 0; i < N; i++) {
+        const t = i / N * verts.length;
+        const idx = Math.floor(t) % verts.length;
+        const local = t - Math.floor(t);
+        const p1 = verts[idx];
+        const p2 = verts[(idx + 1) % verts.length];
+        points.push({
+          x: p1.x + (p2.x - p1.x) * local,
+          y: p1.y + (p2.y - p1.y) * local
+        });
+      }
+      break;
+    }
+
+    case 'heart': {
+      // معادلة القلب
+      for (let i = 0; i < N; i++) {
+        const t = (i / N) * Math.PI * 2;
+        const x = 16 * Math.pow(Math.sin(t), 3);
+        const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+        points.push({
+          x: cx + x * (size / 16),
+          y: cy + y * (size / 16)
+        });
+      }
+      break;
+    }
+
+    case 'spiral': {
+      const turns = 4;
+      for (let i = 0; i < N; i++) {
+        const t = i / N;
+        const a = t * turns * Math.PI * 2;
+        const r = t * size;
+        points.push({
+          x: cx + Math.cos(a) * r,
+          y: cy + Math.sin(a) * r
+        });
+      }
+      break;
+    }
+
+    case 'hexagon': {
+      const verts = [];
+      for (let i = 0; i < 6; i++) {
+        const a = i * Math.PI / 3 - Math.PI / 2;
+        verts.push({ x: cx + Math.cos(a) * size, y: cy + Math.sin(a) * size });
+      }
+      for (let i = 0; i < N; i++) {
+        const t = i / N * 6;
+        const idx = Math.floor(t) % 6;
+        const local = t - Math.floor(t);
+        const p1 = verts[idx];
+        const p2 = verts[(idx + 1) % 6];
+        points.push({
+          x: p1.x + (p2.x - p1.x) * local,
+          y: p1.y + (p2.y - p1.y) * local
+        });
+      }
+      break;
+    }
+
+    case 'infinity': {
+      // رمز ∞
+      for (let i = 0; i < N; i++) {
+        const t = (i / N) * Math.PI * 2;
+        const x = Math.cos(t) / (1 + Math.pow(Math.sin(t), 2));
+        const y = Math.sin(t) * Math.cos(t) / (1 + Math.pow(Math.sin(t), 2));
+        points.push({
+          x: cx + x * size * 1.8,
+          y: cy + y * size * 1.8
+        });
+      }
+      break;
+    }
   }
 
-  reset(x, y, options = {}) {
-    const isBurst = options.isBurst || false;
-    const angle = options.angle !== undefined 
-      ? options.angle + (Math.random() - 0.5) * 0.5
-      : Math.random() * Math.PI * 2;
-    
-    const speed = isBurst 
-      ? Math.random() * 7 + 2 
-      : Math.random() * 2.5 + 0.5;
+  return points;
+}
 
+// ==========================================
+// 🎯 نظام الجسيمات
+// ==========================================
+class Particle {
+  constructor() {
+    this.active = false;
+    this.hue = 0;
+  }
+
+  // الوضع 1: يتحرك نحو هدف (لتشكيل الشكل)
+  setTarget(tx, ty, hue) {
+    this.x = Math.random() * W;
+    this.y = Math.random() * H;
+    this.tx = tx;
+    this.ty = ty;
+    this.vx = 0;
+    this.vy = 0;
+    this.life = 1.0;
+    this.maxLife = 1.0;
+    this.decay = 0;
+    this.size = Math.random() * 2.5 + 1.5;
+    this.hue = hue;
+    this.mode = 'target';
+    this.active = true;
+    this.wobble = Math.random() * Math.PI * 2;
+  }
+
+  // الوضع 2: ينفجر من نقطة
+  setBurst(x, y, hue) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 8 + 2;
     this.x = x;
     this.y = y;
     this.vx = Math.cos(angle) * speed;
     this.vy = Math.sin(angle) * speed;
     this.life = 1.0;
+    this.maxLife = 1.0;
     this.decay = Math.random() * 0.012 + 0.006;
-    
-    // حجم متغير حسب السرعة
-    const sizeBoost = Math.min(speed * 0.5, 3);
-    this.size = Math.random() * (CONFIG.particleMaxSize - CONFIG.particleMinSize) 
-              + CONFIG.particleMinSize + sizeBoost;
-    
-    // ألوان HSL ديناميكية
-    const hue = CONFIG.baseHue + (Math.random() - 0.5) * CONFIG.hueRange;
-    const sat = 90 + Math.random() * 10;
-    const light = 55 + Math.random() * 20;
+    this.size = Math.random() * 3 + 2;
     this.hue = hue;
-    this.color = `hsl(${hue}, ${sat}%, ${light}%)`;
-    this.glowColor = `hsla(${hue}, 100%, 70%, 0.8)`;
-    
-    // خصائص إضافية
+    this.mode = 'free';
+    this.active = true;
     this.wobble = Math.random() * Math.PI * 2;
-    this.wobbleSpeed = (Math.random() - 0.5) * 0.1;
   }
 
   update(dt) {
-    // Wobble effect - حركة تموج
-    this.wobble += this.wobbleSpeed;
-    const wobbleX = Math.cos(this.wobble) * 0.05;
-    const wobbleY = Math.sin(this.wobble) * 0.05;
+    if (!this.active) return;
 
-    this.vx = (this.vx + wobbleX) * CONFIG.friction;
-    this.vy = (this.vy + wobbleY) * CONFIG.friction;
-    this.vy += CONFIG.gravity;
-    
-    this.x += this.vx * dt;
-    this.y += this.vy * dt;
-    this.life -= this.decay * dt;
+    if (this.mode === 'target') {
+      // انجذاب ناعم نحو الهدف
+      const dx = this.tx - this.x;
+      const dy = this.ty - this.y;
+      this.vx = (this.vx + dx * 0.08) * 0.85;
+      this.vy = (this.vy + dy * 0.85 * 0.08) * 0.85;
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+
+      // اهتزاز خفيف
+      this.wobble += 0.05 * dt;
+      this.x += Math.cos(this.wobble) * 0.3;
+      this.y += Math.sin(this.wobble) * 0.3;
+
+      // اكتمل الوصول؟
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 3) {
+        // يبدأ بالتلاشي ببطء
+        this.decay = 0.008;
+      }
+    } else {
+      // حركة حرة
+      this.vx *= 0.985;
+      this.vy *= 0.985;
+      this.vy += 0.08;
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      this.life -= this.decay * dt;
+    }
+
+    // في وضع الهدف، الحياة تبقى 1 حتى الوصول
+    if (this.mode === 'target' && this.decay > 0) {
+      this.life -= this.decay * dt;
+    }
+
+    if (this.life <= 0) {
+      this.active = false;
+    }
   }
 
-  draw(ctx) {
-    if (this.life <= 0) return;
-    
-    const alpha = this.life * this.life; // تلاشي تربيعي أسرع
+  draw() {
+    if (!this.active || this.life <= 0) return;
+
+    const alpha = Math.max(0, this.life);
     const radius = this.size * this.life;
-    
+
     ctx.globalAlpha = alpha;
-    ctx.fillStyle = this.color;
-    ctx.shadowBlur = CONFIG.glowIntensity * this.life;
-    ctx.shadowColor = this.glowColor;
-    
+    ctx.fillStyle = `hsl(${this.hue}, 100%, 65%)`;
+    ctx.shadowBlur = 12 * this.life;
+    ctx.shadowColor = `hsl(${this.hue}, 100%, 70%)`;
     ctx.beginPath();
     ctx.arc(this.x, this.y, radius, 0, Math.PI * 2);
     ctx.fill();
   }
 }
 
-// ========== مدير الجسيمات (Object Pool) ==========
-class ParticlePool {
-  constructor(maxSize) {
-    this.pool = [];
-    this.active = [];
-    this.maxSize = maxSize;
-    
-    // Pre-allocate
-    for (let i = 0; i < maxSize; i++) {
-      this.pool.push(new Particle(0, 0));
-    }
-  }
+// ==========================================
+// 🎭 مدير الأشكال
+// ==========================================
+const pool = [];
+const active = [];
+const MAX = 1500;
 
-  emit(x, y, options = {}) {
-    if (this.active.length >= this.maxSize) {
-      // إعادة استخدام أقدم جسيم
-      const oldest = this.active.shift();
-      oldest.reset(x, y, options);
-      this.active.push(oldest);
-      return oldest;
-    }
-    
-    let particle;
-    if (this.pool.length > 0) {
-      particle = this.pool.pop();
-      particle.reset(x, y, options);
-    } else {
-      particle = new Particle(x, y, options);
-    }
-    this.active.push(particle);
-    return particle;
-  }
-
-  burst(x, y, count, options = {}) {
-    for (let i = 0; i < count; i++) {
-      this.emit(x, y, { ...options, isBurst: true });
-    }
-  }
-
-  update(dt) {
-    for (let i = this.active.length - 1; i >= 0; i--) {
-      const p = this.active[i];
-      p.update(dt);
-      if (p.life <= 0) {
-        this.pool.push(this.active.splice(i, 1)[0]);
-      }
-    }
-  }
-
-  draw(ctx) {
-    // إعادة تعيين الحالة
-    ctx.globalAlpha = 1;
-    ctx.shadowBlur = 0;
-    
-    for (let i = 0; i < this.active.length; i++) {
-      this.active[i].draw(ctx);
-    }
-    
-    ctx.globalAlpha = 1;
-    ctx.shadowBlur = 0;
-  }
-
-  get count() { return this.active.length; }
+function getParticle() {
+  if (pool.length > 0) return pool.pop();
+  return new Particle();
 }
 
-// ========== الإنشاء ==========
-const particles = new ParticlePool(CONFIG.maxParticles);
+function burst(x, y, count, hue) {
+  for (let i = 0; i < count && active.length < MAX; i++) {
+    const p = getParticle();
+    p.setBurst(x, y, hue);
+    active.push(p);
+  }
+}
 
-// ========== نظام الإطارات ==========
-let lastTime = performance.now();
-let fpsCounter = 0;
-let fpsTime = 0;
-let currentFPS = 60;
+// الأشكال المتاحة
+const SHAPES = ['triangle', 'square', 'circle', 'star', 'heart', 'hexagon', 'spiral', 'infinity'];
+const SHAPE_NAMES = {
+  triangle: '✦ مثلث ✦',
+  square: '◆ مربع ◆',
+  circle: '● دائرة ●',
+  star: '★ نجمة ★',
+  heart: '♥ قلب ♥',
+  hexagon: '⬡ سداسي ⬡',
+  spiral: '🌀 حلزوني 🌀',
+  infinity: '∞ لانهاية ∞'
+};
 
-// ========== حلقة الرسم الرئيسية ==========
-function loop(now) {
-  const rawDt = (now - lastTime) / 16.667; // Normalize to 60fps
-  lastTime = now;
-  const dt = Math.min(rawDt, 2); // Clamp لتجنب القفزات
+let currentShapeIndex = 0;
+letShape shapeParticles = [];
 
-  // حساب FPS
-  fpsCounter++;
-  fpsTime += now - (fpsTime ? lastTime - (now - lastTime) : 0);
-  if (now - (loop.lastFpsUpdate || 0) > 500) {
-    currentFPS = Math.round(fpsCounter * 1000 / (now - (loop.lastFpsUpdate || now - 500)));
-    fpsCounter = 0;
-    loop.lastFpsUpdate = now;
-    fpsEl.textContent = currentFPS + ' FPS';
-    countEl.textContent = particles.count + ' جسيم';
+// بناء الشكل الحالي
+function rebuildIndexShape() {
+  // انفجار الشكل القديم
+  for (const p of shapeParticles) {
+    if (p.active) {
+      p.mode = 'free';
+      p.vx = (p.x - W / 2) * 0.05 + (Math.random() - 0.5) * 4;
+      p.vy = (p` يد.y - H / 2) * 0.05 + (Math.random() - 0.5) * 4;
+      p.decay = Math.random() * 0.015 + 0.008;
+    }
   }
 
-  // ===== 1. تأثير الذيل (Motion Blur) =====
+  // اسمح لها بالانطلاق
+  active.push(...shapeParticles);
+  shapeParticles = [];
+
+  const shape = SHAPES[currentShapeIndex];
+  const size = Math.min(W, H) * 0.28;
+  const cx = W / 2;
+  const cy = H / 2;
+  const points = getShapePoints(shape, cx, cy, size);
+
+  // لون حسب الشكل
+  const baseHue = (currentShapeIndex * 45) % 360;
+
+  for (const pt of points) {
+    if (active.length >= MAX) break;
+    const p = getParticle();
+    const hue = baseHue + (Math.random() - 0.5) * 40;
+    p.setTarget(pt.x, pt.y, hue);
+    shapeParticles.push(p);
+  }
+
+  shapeNameEl.textContent = SHAPE_NAMES[shape];
+  shapeNameEl.style.opacity = '1';
+
+  // انفجار احتفالي صغير
+  burst(cx, cy, 30, baseHue);
+
+  // انتقل للشكل التالي
+  currentShapeIndex = (currentShapeIndex + 1) % SHAPES.length;
+
+  // جدولة الشكل التالي
+  setTimeout(rebuildShape, 4000);
+}
+
+// ==========================================
+// 🎬 حلقة الرسم
+// ==========================================
+let lastTime = performance.now();
+let frameCount = 0;
+let fpsTimer = performance.now();
+
+function loop(now) {
+  const rawDt = (now - lastTime) / 16.667;
+  lastTime = now;
+  const dt = Math.min(rawDt, 3);
+
+  // خلفية شبه شفافة
   ctx.globalAlpha = 1;
   ctx.shadowBlur = 0;
-  ctx.fillStyle = `rgba(0, 0, 0, ${CONFIG.trail})`;
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
   ctx.fillRect(0, 0, W, H);
 
-  // ===== 2. إصدار تلقائي من المركز =====
-  if (Math.random() < CONFIG.autoEmitRate * dt) {
-    const cx = W / 2 + (Math.random() - 0.5) * 100;
-    const cy = H / 2 + (Math.random() - 0.5) * 100;
-    particles.emit(cx, cy);
+  // تحديث
+  for (let i = active.length - 1; i >= 0; i--) {
+    const p = active[i];
+    p.update(dt);
+    if (!p.active) {
+      active.splice(i, 1);
+      pool.push(p);
+    }
   }
 
-  // ===== 3. تحديث ورسم =====
-  particles.update(dt);
-  particles.draw(ctx);
+  // رسم
+  for (let i = 0; i < active.length; i++) {
+    active[i].draw();
+  }
 
-  // ===== 4. الجسيم التالي =====
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+
+  // إحصائيات
+  frameCount++;
+  if (now - fpsTimer > 500) {
+    const fps = Math.round(frameCount * 1000 / (now - fpsTimer));
+    fpsEl.textContent = fps + ' FPS';
+    countEl.textContent = active.length + ' جسيم';
+    frameCount = 0;
+    fpsTimer = now;
+  }
+
   requestAnimationFrame(loop);
 }
 
-// ========== التفاعل باللمس (iPhone) ==========
-let lastTouchTime = 0;
-let touchTrail = [];
-
-function handleTouch(e) {
+// ==========================================
+// 👆 التفاعل باللمس - يطلق انفجارات
+// ==========================================
+function onTouch(e) {
   e.preventDefault();
-  hint.classList.add('fade-out');
-  
-  const now = performance.now();
-  const touches =ches;
-
-  for (let i = 0; i < touches.length; i++) {
-    const t = touches[i];
-    const x = t.clientX;
-    const y = t.clientY;
-
-    // حساب اتجاه الحركة
-    if (touchTrail[i]) {
-      const dx = x - touchTrail[i].x;
-      const dy = y - touchTrail[i].y;
-      const angle = Math.atan2(dy, dx);
-      const speed = Math.sqrt(dx * dx + dy * dy);
-      
-      // جسيمات بسرعة حسب سرعة الإصبع
-      const count = Math.min(Math.floor(speed * 0.5) + 3, 15);
-      for (let j = 0; j < count; j++) {
-        particles.emit(x, y, { 
-          angle: angle + Math.PI,
-          isBurst: speed > 10
-        });
-      }
-    } else {
-      // أول لمسة = انفجار
-      particles.burst(x, y, CONFIG.burstCount);
-    }
-
-    touchTrail[i] = { x, y };
-  }
-
-  lastTouchTime = now;
-}
-
-function handleTouchEnd(e) {
-  e.preventDefault();
-  // إعادة تعيين مسار اللمس
-  const activeIds = new Set();
   for (let i = 0; i < e.touches.length; i++) {
-    activeIds.add(e.touches[i].identifier);
+    const t = e.touches[i];
+    const hue = (performance.now() * 0.1) % 360;
+    burst(t.clientX, t.clientY, 25, hue);
   }
-  touchTrail = touchTrail.filter((_, i) => activeIds.has(i));
 }
 
-// ========== التفاعل بالماوس (للاختبار على الحاسوب) ==========
-let mouseDown = false;
-let lastMousePos = null;
+canvas.addEventListener('touchstart', onTouch, { passive: false });
+canvas.addEventListener('touchmove', onTouch, { passive: false });
+canvas.addEventListener('touchend', e => e.preventDefault(), { passive: false });
 
-function handleMouse(e) {
-  const x = e.clientX;
-  const y = e.clientY;
-  hint.classList.add('fade-out');
-
-  if (mouseDown && lastMousePos) {
-    const dx = x - lastMousePos.x;
-    const dy = y - lastMousePos.y;
-    const angle = Math.atan2(dy, dx);
-    const speed = Math.sqrt(dx * dx + dy * dy);
-    const count = Math.min(Math.floor(speed * 0.5) + 2, 10);
-    for (let j = 0; j < count; j++) {
-      particles.emit(x, y, { angle: angle + Math.PI });
-    }
-  } else {
-    particles.emit(x, y);
-  }
-  lastMousePos = { x, y };
-}
-
-// ========== تسجيل الأحداث ==========
-canvas.addEventListener('touchstart', handleTouch, { passive: false });
-canvas.addEventListener('touchmove', handleTouch, { passive: false });
-canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
-canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
-
-canvas.addEventListener('mousedown', (e) => { mouseDown = true; particles.burst(e.clientX, e.clientY, 50); });
-canvas.addEventListener('mouseup', () => { mouseDown = false; lastMousePos = null; });
-canvas.addEventListener('mousemove', handleMouse);
-canvas.addEventListener('mouseleave', () => { mouseDown = false; lastMousePos = null; });
-
-// ========== منع السلوك الافتراضي ==========
-document.addEventListener('gesturestart', e => e.preventDefault());
-document.addEventListener('gesturechange', e => e.preventDefault());
-document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
-
-// ========== انفجار ترحيبي ==========
-setTimeout(() => {
-  particles.burst(W / 2, H / 2, 80);
-}, 300);
-
-setTimeout(() => {
-  particles.burst(W * 0.3, H * 0.4, 40);
-  particles.burst(W * 0.7, H * 0.6, 40);
-}, 800);
-
-// ========== إخفاء التلميح ==========
-setTimeout(() => hint.classList.add('fade-out'), 6000);
-
-// ========== بدء الحلقة ==========
-requestAnimationFrame(loop);
-
-// ========== إيقاف/تشغيل عند تغيير التبويب ==========
-document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) {
-    lastTime = performance.now();
-    requestAnimationFrame(loop);
-  }
+// ماوس
+canvas.addEventListener('mousedown', (e) => {
+  burst(e.clientX, e.clientY, 40, Math.random() * 360);
+});
+canvas.addEventListener('mousemove', (e) => {
+  if (e.buttons === 1) burst(e.clientX, e.clientY, 8, Math.random() * 360);
 });
 
-// ========== اهتزاز خفيف عند اللمس (Haptic) ==========
-function vibrate(ms) {
-  if ('vibrate' in navigator) navigator.vibrate(ms);
-}
+// منع zoom
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
 
-canvas.addEventListener('touchstart', () => vibrate(10), { passive: true, once: false });
+// ==========================================
+// 🚀 بدء التشغيل
+// ==========================================
+requestAnimationFrame(loop);
 
+// انتظر قليلاً ثم ابدأ بالأشكال
+setTimeout(() => {
+  rebuildShape();
+}, 500);
 </script>
 </body>
 </html>
