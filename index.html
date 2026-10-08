@@ -1,182 +1,444 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>نظام الجسيمات ✨</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
+<title>Particles Pro ✨</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
-    width: 100%;
-    height: 100%;
-    background: #000;
+    width: 100vw;
+    height: 100vh;
     overflow: hidden;
+    background: #000;
     touch-action: none;
     -webkit-user-select: none;
-    user-select: none;
-    font-family: sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
   }
-  canvas {
+  #canvas {
     display: block;
     position: fixed;
-    top: 0;
-    left: 0;
+    inset: 0;
     width: 100%;
     height: 100%;
-    background: #000;
+  }
+  #ui {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 40px 20px;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 13px;
+    letter-spacing: 0.5px;
   }
   #hint {
-    position: fixed;
-    top: 20px;
-    left: 0;
-    right: 0;
     text-align: center;
-    color: rgba(255,255,255,0.6);
-    font-size: 16px;
-    pointer-events: none;
-    transition: opacity 0.5s;
-    z-index: 10;
+    font-size: 15px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    text-shadow: 0 0 20px rgba(100, 200, 255, 0.8);
+    animation: pulse 2.5s ease-in-out infinite;
+    transition: opacity 0.6s;
   }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.05); }
+  }
+  #stats {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'SF Mono', monospace;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+  }
+  #stats span { 
+    background: rgba(255,255,255,0.05);
+    padding: 4px 8px;
+    border-radius: 6px;
+    backdrop-filter: blur(10px);
+  }
+  .fade-out { opacity: 0 !important; }
 </style>
 </head>
 <body>
 <canvas id="canvas"></canvas>
-<div id="hint">المس الشاشة ✨</div>
+
+<div id="ui">
+  <div id="hint">المس الشاشة للتفاعل ✨</div>
+  <div id="stats">
+    <span id="fps">60 FPS</span>
+    <span id="count">0 جسيم</span>
+  </div>
+</div>
 
 <script>
+'use strict';
+
+// ==========================================
+// 🚀 نظام الجسيمات الاحترافي
+// ==========================================
+
 const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: false });
 const hint = document.getElementById('hint');
+const fpsEl = document.getElementById('fps');
+const countEl = document.getElementById('count');
 
-// ضبط دقة عالية لـ iPhone Retina
+// ========== إعدادات الأداء ==========
+const CONFIG = {
+  maxParticles: 1500,
+  maxFPS: 60,
+  e trail: 0.18,           // ش.tدة الذيل (0-1)
+ou  gravity: 0.08,
+  friction: 0.985,
+  glowIntensity: 15,
+  hueRange: 60,          // مدى تنوع الألوان
+  baseHue: 200,          // اللون الأساسي (أزرق)
+  particleMinSize: 2,
+  particleMaxSize: 6,
+  autoEmitRate: 0.3,     // معدل الإصدار التلقائي
+  burstCount: 30,        // عدد الجسيمات في الانفجار
+};
+
+// ========== إعداد Canvas عالي الدقة ==========
+let W = 0, H = 0, DPR = 1;
+
 function resize() {
-  const dpr = window.devicePixelRatio || 1;
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  canvas.width = w * dpr;
-  canvas.height = h * dpr;
-  canvas.style.width = w + 'px';
-  canvas.style.height = h + 'px';
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
+
 resize();
-window.addEventListener('resize', resize);
-window.addEventListener('orientationchange', () => setTimeout(resize, 200));
+let resizeTimeout;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(resize, 150);
+});
+window.addEventListener('orientationchange', () => {
+  setTimeout(resize, 300);
+});
 
-const particles = [];
-const MAX_PARTICLES = 500;
-
+// ========== فئة الجسيم ==========
 class Particle {
-  constructor(x, y, isBurst = false) {
+  constructor(x, y, options = {}) {
+    this.reset(x, y, options);
+  }
+
+  reset(x, y, options = {}) {
+    const isBurst = options.isBurst || false;
+    const angle = options.angle !== undefined 
+      ? options.angle + (Math.random() - 0.5) * 0.5
+      : Math.random() * Math.PI * 2;
+    
+    const speed = isBurst 
+      ? Math.random() * 7 + 2 
+      : Math.random() * 2.5 + 0.5;
+
     this.x = x;
     this.y = y;
-    const angle = Math.random() * Math.PI * 2;
-    const speed = isBurst ? Math.random() * 6 + 2 : Math.random() * 2 + 0.5;
     this.vx = Math.cos(angle) * speed;
     this.vy = Math.sin(angle) * speed;
     this.life = 1.0;
     this.decay = Math.random() * 0.012 + 0.006;
-    // 👇 حجم أكبر بكثير ليكون مرئياً على iPhone
-    this.size = Math.random() * 6 + 3;
-    const hue = Math.random() * 60 + 180;
-    this.color = `hsl(${hue}, 100%, 65%)`;
-    this.gravity = 0.06;
-    this.friction = 0.985;
+    
+    // حجم متغير حسب السرعة
+    const sizeBoost = Math.min(speed * 0.5, 3);
+    this.size = Math.random() * (CONFIG.particleMaxSize - CONFIG.particleMinSize) 
+              + CONFIG.particleMinSize + sizeBoost;
+    
+    // ألوان HSL ديناميكية
+    const hue = CONFIG.baseHue + (Math.random() - 0.5) * CONFIG.hueRange;
+    const sat = 90 + Math.random() * 10;
+    const light = 55 + Math.random() * 20;
+    this.hue = hue;
+    this.color = `hsl(${hue}, ${sat}%, ${light}%)`;
+    this.glowColor = `hsla(${hue}, 100%, 70%, 0.8)`;
+    
+    // خصائص إضافية
+    this.wobble = Math.random() * Math.PI * 2;
+    this.wobbleSpeed = (Math.random() - 0.5) * 0.1;
   }
 
-  update() {
-    this.vx *= this.friction;
-    this.vy *= this.friction;
-    this.vy += this.gravity;
-    this.x += this.vx;
-    this.y += this.vy;
-    this.life -= this.decay;
+  update(dt) {
+    // Wobble effect - حركة تموج
+    this.wobble += this.wobbleSpeed;
+    const wobbleX = Math.cos(this.wobble) * 0.05;
+    const wobbleY = Math.sin(this.wobble) * 0.05;
+
+    this.vx = (this.vx + wobbleX) * CONFIG.friction;
+    this.vy = (this.vy + wobbleY) * CONFIG.friction;
+    this.vy += CONFIG.gravity;
+    
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    this.life -= this.decay * dt;
   }
 
-  draw() {
+  draw(ctx) {
     if (this.life <= 0) return;
-    ctx.globalAlpha = Math.max(0, this.life);
+    
+    const alpha = this.life * this.life; // تلاشي تربيعي أسرع
+    const radius = this.size * this.life;
+    
+    ctx.globalAlpha = alpha;
     ctx.fillStyle = this.color;
-    ctx.shadowBlur = 20;
-    ctx.shadowColor = this.color;
+    ctx.shadowBlur = CONFIG.glowIntensity * this.life;
+    ctx.shadowColor = this.glowColor;
+    
     ctx.beginPath();
-    ctx.arc(this.x, this.y, this.size * this.life, 0, Math.PI * 2);
+    ctx.arc(this.x, this.y, radius, 0, Math.PI * 2);
     ctx.fill();
   }
 }
 
-function addParticle(x, y, isBurst = false) {
-  if (particles.length < MAX_PARTICLES) {
-    particles.push(new Particle(x, y, isBurst));
+// ========== مدير الجسيمات (Object Pool) ==========
+class ParticlePool {
+  constructor(maxSize) {
+    this.pool = [];
+    this.active = [];
+    this.maxSize = maxSize;
+    
+    // Pre-allocate
+    for (let i = 0; i < maxSize; i++) {
+      this.pool.push(new Particle(0, 0));
+    }
   }
+
+  emit(x, y, options = {}) {
+    if (this.active.length >= this.maxSize) {
+      // إعادة استخدام أقدم جسيم
+      const oldest = this.active.shift();
+      oldest.reset(x, y, options);
+      this.active.push(oldest);
+      return oldest;
+    }
+    
+    let particle;
+    if (this.pool.length > 0) {
+      particle = this.pool.pop();
+      particle.reset(x, y, options);
+    } else {
+      particle = new Particle(x, y, options);
+    }
+    this.active.push(particle);
+    return particle;
+  }
+
+  burst(x, y, count, options = {}) {
+    for (let i = 0; i < count; i++) {
+      this.emit(x, y, { ...options, isBurst: true });
+    }
+  }
+
+  update(dt) {
+    for (let i = this.active.length - 1; i >= 0; i--) {
+      const p = this.active[i];
+      p.update(dt);
+      if (p.life <= 0) {
+        this.pool.push(this.active.splice(i, 1)[0]);
+      }
+    }
+  }
+
+  draw(ctx) {
+    // إعادة تعيين الحالة
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    
+    for (let i = 0; i < this.active.length; i++) {
+      this.active[i].draw(ctx);
+    }
+    
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+  }
+
+  get count() { return this.active.length; }
 }
 
-function burst(x, y, count = 40) {
-  for (let i = 0; i < count; i++) addParticle(x, y, true);
-}
+// ========== الإنشاء ==========
+const particles = new ParticlePool(CONFIG.maxParticles);
 
-function animate() {
+// ========== نظام الإطارات ==========
+let lastTime = performance.now();
+let fpsCounter = 0;
+let fpsTime = 0;
+let currentFPS = 60;
+
+// ========== حلقة الرسم الرئيسية ==========
+function loop(now) {
+  const rawDt = (now - lastTime) / 16.667; // Normalize to 60fps
+  lastTime = now;
+  const dt = Math.min(rawDt, 2); // Clamp لتجنب القفزات
+
+  // حساب FPS
+  fpsCounter++;
+  fpsTime += now - (fpsTime ? lastTime - (now - lastTime) : 0);
+  if (now - (loop.lastFpsUpdate || 0) > 500) {
+    currentFPS = Math.round(fpsCounter * 1000 / (now - (loop.lastFpsUpdate || now - 500)));
+    fpsCounter = 0;
+    loop.lastFpsUpdate = now;
+    fpsEl.textContent = currentFPS + ' FPS';
+    countEl.textContent = particles.count + ' جسيم';
+  }
+
+  // ===== 1. تأثير الذيل (Motion Blur) =====
   ctx.globalAlpha = 1;
   ctx.shadowBlur = 0;
-  // خلفية شبه شفافة لتأثير الذيل
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = `rgba(0, 0, 0, ${CONFIG.trail})`;
+  ctx.fillRect(0, 0, W, H);
 
-  for (let i = particles.length - 1; i >= 0; i--) {
-    const p = particles[i];
-    p.update();
-    p.draw();
-    if (p.life <= 0) particles.splice(i, 1);
+  // ===== 2. إصدار تلقائي من المركز =====
+  if (Math.random() < CONFIG.autoEmitRate * dt) {
+    const cx = W / 2 + (Math.random() - 0.5) * 100;
+    const cy = H / 2 + (Math.random() - 0.5) * 100;
+    particles.emit(cx, cy);
   }
 
-  ctx.globalAlpha = 1;
-  ctx.shadowBlur = 0;
+  // ===== 3. تحديث ورسم =====
+  particles.update(dt);
+  particles.draw(ctx);
 
-  // جسيمات تلقائية من المركز
-  if (Math.random() < 0.4 && particles.length < MAX_PARTICLES) {
-    addParticle(window.innerWidth / 2, window.innerHeight / 2);
-  }
-
-  requestAnimationFrame(animate);
+  // ===== 4. الجسيم التالي =====
+  requestAnimationFrame(loop);
 }
 
-// بدء التشغيل
-setTimeout(() => {
-  // انفجار ترحيبي عند الفتح
-  burst(window.innerWidth / 2, window.innerHeight / 2, 80);
-  animate();
-}, 100);
+// ========== التفاعل باللمس (iPhone) ==========
+let lastTouchTime = 0;
+let touchTrail = [];
 
-// ============ التفاعل باللمس ============
 function handleTouch(e) {
   e.preventDefault();
-  hint.style.opacity = '0';
-  for (let i = 0; i < e.touches.length; i++) {
-    const t = e.touches[i];
-    burst(t.clientX, t.clientY, 30);
+  hint.classList.add('fade-out');
+  
+  const now = performance.now();
+  const touches =ches;
+
+  for (let i = 0; i < touches.length; i++) {
+    const t = touches[i];
+    const x = t.clientX;
+    const y = t.clientY;
+
+    // حساب اتجاه الحركة
+    if (touchTrail[i]) {
+      const dx = x - touchTrail[i].x;
+      const dy = y - touchTrail[i].y;
+      const angle = Math.atan2(dy, dx);
+      const speed = Math.sqrt(dx * dx + dy * dy);
+      
+      // جسيمات بسرعة حسب سرعة الإصبع
+      const count = Math.min(Math.floor(speed * 0.5) + 3, 15);
+      for (let j = 0; j < count; j++) {
+        particles.emit(x, y, { 
+          angle: angle + Math.PI,
+          isBurst: speed > 10
+        });
+      }
+    } else {
+      // أول لمسة = انفجار
+      particles.burst(x, y, CONFIG.burstCount);
+    }
+
+    touchTrail[i] = { x, y };
   }
+
+  lastTouchTime = now;
 }
 
-canvas.addEventListener('touchstart', handleTouch, { passive: false });
-canvas.addEventListener('touchmove', (e) => {
+function handleTouchEnd(e) {
   e.preventDefault();
-  hint.style.opacity = '0';
+  // إعادة تعيين مسار اللمس
+  const activeIds = new Set();
   for (let i = 0; i < e.touches.length; i++) {
-    const t = e.touches[i];
-    for (let j = 0; j < 3; j++) addParticle(t.clientX, t.clientY);
+    activeIds.add(e.touches[i].identifier);
   }
-}, { passive: false });
+  touchTrail = touchTrail.filter((_, i) => activeIds.has(i));
+}
 
-// ============ التفاعل بالماوس ============
-canvas.addEventListener('mousemove', (e) => {
-  hint.style.opacity = '0';
-  addParticle(e.clientX, e.clientY);
-});
-canvas.addEventListener('click', (e) => {
-  burst(e.clientX, e.clientY, 50);
+// ========== التفاعل بالماوس (للاختبار على الحاسوب) ==========
+let mouseDown = false;
+let lastMousePos = null;
+
+function handleMouse(e) {
+  const x = e.clientX;
+  const y = e.clientY;
+  hint.classList.add('fade-out');
+
+  if (mouseDown && lastMousePos) {
+    const dx = x - lastMousePos.x;
+    const dy = y - lastMousePos.y;
+    const angle = Math.atan2(dy, dx);
+    const speed = Math.sqrt(dx * dx + dy * dy);
+    const count = Math.min(Math.floor(speed * 0.5) + 2, 10);
+    for (let j = 0; j < count; j++) {
+      particles.emit(x, y, { angle: angle + Math.PI });
+    }
+  } else {
+    particles.emit(x, y);
+  }
+  lastMousePos = { x, y };
+}
+
+// ========== تسجيل الأحداث ==========
+canvas.addEventListener('touchstart', handleTouch, { passive: false });
+canvas.addEventListener('touchmove', handleTouch, { passive: false });
+canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+
+canvas.addEventListener('mousedown', (e) => { mouseDown = true; particles.burst(e.clientX, e.clientY, 50); });
+canvas.addEventListener('mouseup', () => { mouseDown = false; lastMousePos = null; });
+canvas.addEventListener('mousemove', handleMouse);
+canvas.addEventListener('mouseleave', () => { mouseDown = false; lastMousePos = null; });
+
+// ========== منع السلوك الافتراضي ==========
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('gesturechange', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+
+// ========== انفجار ترحيبي ==========
+setTimeout(() => {
+  particles.burst(W / 2, H / 2, 80);
+}, 300);
+
+setTimeout(() => {
+  particles.burst(W * 0.3, H * 0.4, 40);
+  particles.burst(W * 0.7, H * 0.6, 40);
+}, 800);
+
+// ========== إخفاء التلميح ==========
+setTimeout(() => hint.classList.add('fade-out'), 6000);
+
+// ========== بدء الحلقة ==========
+requestAnimationFrame(loop);
+
+// ========== إيقاف/تشغيل عند تغيير التبويب ==========
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    lastTime = performance.now();
+    requestAnimationFrame(loop);
+  }
 });
 
-setTimeout(() => hint.style.opacity = '0', 4000);
+// ========== اهتزاز خفيف عند اللمس (Haptic) ==========
+function vibrate(ms) {
+  if ('vibrate' in navigator) navigator.vibrate(ms);
+}
+
+canvas.addEventListener('touchstart', () => vibrate(10), { passive: true, once: false });
+
 </script>
 </body>
 </html>
