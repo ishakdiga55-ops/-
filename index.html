@@ -2,10 +2,10 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#000">
-<title>سماء النجوم ✨</title>
+<title>◈ الهرم الكوني ◈</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
@@ -14,349 +14,673 @@
     overflow: hidden;
     touch-action: none;
     -webkit-user-select: none;
-    font-family: -apple-system, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
   }
   canvas { display: block; }
-  #title {
+  
+  #hud {
     position: fixed;
-    top: 20px;
-    left: 0; right: 0;
-    text-align: center;
-    color: rgba(255,255,255,0.7);
-    font-size: 16px;
-    font-weight: 300;
-    letter-spacing: 3px;
-    text-shadow: 0 0 20px rgba(100,200,255,0.6);
+    top: 0; left: 0; right: 0;
+    padding: 20px 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: rgba(255,255,255,0.85);
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
     pointer-events: none;
     z-index: 10;
+    font-weight: 300;
+  }
+  
+  #status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  #dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #4af;
+    box-shadow: 0 0 12px #4af;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.3); }
+  }
+  
+  #title {
+    position: fixed;
+    bottom: 30px;
+    left: 0; right: 0;
+    text-align: center;
+    color: rgba(255,255,255,0.4);
+    font-size: 11px;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    pointer-events: none;
+    z-index: 10;
+    font-weight: 300;
   }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="title">⭐ بناء الهرم ⭐</div>
+
+<div id="hud">
+  <div id="status">
+    <div id="dot"></div>
+    <span id="phase">بناء</span>
+  </div>
+  <div id="counter">0 / 0</div>
+</div>
+<div id="title">◈ pyramid ◈</div>
 
 <script>
+'use strict';
+
+// ==========================================
+// 🌌 الإعداد الأساسي
+// ==========================================
 var canvas = document.getElementById('c');
 var ctx = canvas.getContext('2d');
-var W = window.innerWidth;
-var H = window.innerHeight;
+var phaseEl = document.getElementById('phase');
+var counterEl = document.getElementById('counter');
 
-// دقة عالية
-var dpr = Math.min(window.devicePixelRatio || 1, 2);
-canvas.width = W * dpr;
-canvas.height = H * dpr;
-canvas.style.width = W + 'px';
-canvas.style.height = H + 'px';
-ctx.scale(dpr, dpr);
+var W, H, DPR;
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, W, H);
+}
+resize();
+window.addEventListener('resize', function() {
+  setTimeout(function() {
+    resize();
+    rebuildScene();
+  }, 200);
+});
 
 // ==========================================
-// 🎨 الألوان
+// 🎨 Palette
 // ==========================================
-var COLORS = [
-  '#00d4ff', '#4facfe', '#00f2fe', '#43e97b', 
-  '#38f9d7', '#fbbf24', '#f59e0b', '#f472b6',
-  '#a855f7', '#818cf8'
-];
+function hue2rgb(p, q, t) {
+  if (t < 0) t += 1;
+  if (t > 1) t -= 1;
+  if (t < 1/6) return p + (q - p) * 6 * t;
+  if (t < 1/2) return q;
+  if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+  return p;
+}
+function hsl(h, s, l) {
+  h = (h % 360) / 360;
+  var r, g, b;
+  if (s === 0) { r = g = b = l; }
+  else {
+    var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    var p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+  return 'rgb(' + Math.round(r*255) + ',' + Math.round(g*255) + ',' + Math.round(b*255) + ')';
+}
+function hsla(h, s, l, a) {
+  h = (h % 360) / 360;
+  var r, g, b;
+  if (s === 0) { r = g = b = l; }
+  else {
+    var q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    var p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+  return 'rgba(' + Math.round(r*255) + ',' + Math.round(g*255) + ',' + Math.round(b*255) + ',' + a + ')';
+}
 
 // ==========================================
-// 📐 حساب نقاط الهرم
+// 🌠 الخلفية الكونية
 // ==========================================
+var bgStars = [];
+var nebula = [];
+
+function initBackground() {
+  bgStars = [];
+  var count = Math.floor((W * H) / 8000);
+  for (var i = 0; i < count; i++) {
+    bgStars.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      size: Math.random() * 1.5 + 0.3,
+      alpha: Math.random() * 0.7 + 0.2,
+      speed: Math.random() * 0.02 + 0.005,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+  
+  nebula = [
+    { x: W * 0.2, y: H * 0.3, r: W * 0.6, hue: 220, alpha: 0.08 },
+    { x: W * 0.8, y: H * 0.7, r: W * 0.5, hue: 280, alpha: 0.06 },
+    { x: W * 0.5, y: H * 0.5, r: W * 0.8, hue: 200, alpha: 0.04 }
+  ];
+}
+
+function drawBackground(time) {
+  // خلفية سوداء عميقة متدرجة
+  var grad = ctx.createRadialGradient(W/2, H*0.3, 0, W/2, H*0.3, Math.max(W, H) * 0.8);
+  grad.addColorStop(0, '#050818');
+  grad.addColorStop(0.5, '#02030a');
+  grad.addColorStop(1, '#000000');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+  
+  // سديم
+  for (var n = 0; n < nebula.length; n++) {
+    var neb = nebula[n];
+    var pulse = Math.sin(time * 0.0003 + n) * 0.02;
+    var rad = neb.r * (1 + pulse);
+    var ng = ctx.createRadialGradient(neb.x, neb.y, 0, neb.x, neb.y, rad);
+    ng.addColorStop(0, hsla(neb.hue, 0.9, 0.5, neb.alpha));
+    ng.addColorStop(1, hsla(neb.hue, 0.9, 0.5, 0));
+    ctx.fillStyle = ng;
+    ctx.fillRect(0, 0, W, H);
+  }
+  
+  // نجوم الخلفية
+  for (var i = 0; i < bgStars.length; i++) {
+    var s = bgStars[i];
+    var tw = Math.sin(time * s.speed + s.phase) * 0.5 + 0.5;
+    ctx.globalAlpha = s.alpha * (0.4 + tw * 0.6);
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ==========================================
+// 🔺 بناء نقاط الهرم (ضلعية)
+// ==========================================
+var pyramidTargets = [];
+
 function buildPyramidPoints() {
-  var points = [];
-  var baseY = H * 0.85;
-  var tipY = H * 0.25;
-  var pyramidW = Math.min(W * 0.85, H * 0.7);
+  pyramidTargets = [];
+  
+  var baseY = H * 0.88;
+  var tipY = H * 0.22;
   var pyramidH = baseY - tipY;
+  var pyramidW = Math.min(W * 0.85, H * 0.75);
   var cx = W / 2;
   
-  // طبقات الهرم
-  var rows = 20;
+  var rows = 22;
   
+  // الضلعان الجانبيان فقط
   for (var row = 0; row < rows; row++) {
-    var t = row / (rows - 1);
+    var t = row / (rows - 1);           // 0 = القمة, 1 = القاعدة
     var y = tipY + t * pyramidH;
-    var rowWidth = t * pyramidW;
+    var width = t * pyramidW;
     
-    // كل طبقة أوسع من السابقة
-    var countInRow = Math.max(2, Math.floor(row * 2 + 2));
+    // نقاط كل صف (كثافة أكبر كلما نزلنا)
+    var countInRow = Math.max(1, Math.floor(1 + t * 14));
     
-    // نقاط على جانبي الهرم فقط (لا نملأ الداخل)
     for (var j = 0; j < countInRow; j++) {
-      var frac = j / (countInRow - 1);
-      var x = cx - rowWidth / 2 + frac * rowWidth;
-      // كل نقطة لها حجم مختلف قليلاً
-      points.push({
-        x: x + (Math.random() - 0.5) * 3,
-        y: y + (Math.random() - 0.5) * 3,
-        size: 3 + Math.random() * 2,
-        hue: 180 + t * 60 + Math.random() * 30
+      var frac = countInRow === 1 ? 0.5 : j / (countInRow - 1);
+      var x = cx - width/2 + frac * width;
+      
+      // ترتيب: من الأعلى للأسفل، من الوسط للخارج
+      pyramidTargets.push({
+        x: x,
+        y: y,
+        size: 2.5 + Math.random() * 2,
+        hue: 190 + t * 90,           // أزرق → ذهبي
+        delay: row * 30 + j * 5,      // تأخير البناء
+        row: row,
+        settled: false
       });
     }
   }
   
-  return points;
+  // ترتيب من الأعلى للأسفل
+  pyramidTargets.sort(function(a, b) { return a.row - b.row; });
 }
 
 // ==========================================
-// ⭐ نظام النجوم
+// ☄️ نجم ساقط (شهاب)
 // ==========================================
-var stars = [];        // النجوم الساقطة
-var pyramid = [];      // جسيمات الهرم المتراكم
-var pyramidPoints = []; // نقاط الهرم المستهدفة
-var nextPointIndex = 0; // النقطة التالية للبناء
-var buildState = 'building'; // 'building' أو 'collapsing'
-var buildTimer = 0;
+var stars = [];
+var maxStars = 500;
+var lastSpawn = 0;
 
-var MAX_STARS = 300;
-
-// إنشاء نقطة الهرم
-function rebuildPyramidPoints() {
-  pyramidPoints = buildPyramidPoints();
-  nextPointIndex = 0;
-}
-
-// ==========================================
-// 🌟 نجمة ساقطة
-// ==========================================
-function createStar() {
-  var x = Math.random() * W;
-  var y = -20;
-  var speed = 2 + Math.random() * 3;
-  var angle = (Math.random() - 0.5) * 0.5; // ميل خفيف
+function createStar(targetIndex) {
+  var angle = Math.PI / 2 + (Math.random() - 0.5) * 0.4;
+  var speed = 3 + Math.random() * 3;
   
   return {
-    x: x,
-    y: y,
-    vx: Math.sin(angle) * speed * 0.5,
-    vy: speed,
+    x: Math.random() * W * 1.2 - W * 0.1,
+    y: -30 - Math.random() * 100,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
     size: 2 + Math.random() * 3,
-    color: COLORS[Math.floor(Math.random() * COLORS.length)],
-    trail: [],           // ذيل النجمة
-    life: 1,
-    targetIndex: -1,     // النقطة التي ستتوجه إليها
-    mode: 'falling',     // 'falling' → 'moving' → 'settled'
-    twinkle: Math.random() * Math.PI * 2
+    hue: 180 + Math.random() * 60,
+    trail: [],
+    maxTrail: 10,
+    mode: 'falling',
+    target: targetIndex,
+    wobble: Math.random() * Math.PI * 2,
+    wobbleSpeed: 0.1 + Math.random() * 0.15,
+    life: 1
   };
 }
 
 // ==========================================
-// 🎬 حلقة الرسم
+// 💥 جزيئات الغبار
 // ==========================================
-var lastStarTime = 0;
-var frameCount = 0;
+var dust = [];
 
+function createDust(x, y, hue, count, power) {
+  for (var i = 0; i < count; i++) {
+    var angle = Math.random() * Math.PI * 2;
+    var spd = Math.random() * power + 0.5;
+    dust.push({
+      x: x, y: y,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd - 0.5,
+      size: 1 + Math.random() * 2,
+      hue: hue,
+      life: 1,
+      decay: 0.02 + Math.random() * 0.02,
+      gravity: 0.15
+    });
+  }
+}
+
+// ==========================================
+// 🌊 موجات الصدمة
+// ==========================================
+var shockwaves = [];
+
+function createShockwave(x, y, hue) {
+  shockwaves.push({
+    x: x, y: y,
+    r: 5,
+    maxR: Math.max(W, H) * 0.6,
+    hue: hue,
+    life: 1,
+    decay: 0.012,
+    width: 4
+  });
+}
+
+// ==========================================
+// 🏛️ الجسيمات المستقرة
+// ==========================================
+var settled = [];
+
+// ==========================================
+// 🎬 حالة المشهد
+// ==========================================
+var phase = 'building';    // building, complete, celebrating, collapse
+var phaseTime = 0;
+var builtCount = 0;
+var totalPoints = 0;
+var spawnInterval = 70;
+var lastFrameTime = 0;
+var shakeAmount = 0;
+var shakeX = 0, shakeY = 0;
+
+function resetScene() {
+  stars = [];
+  dust = [];
+  shockwaves = [];
+  settled = [];
+  builtCount = 0;
+  phase = 'building';
+  phaseTime = 0;
+  shakeAmount = 0;
+  buildPyramidPoints();
+  totalPoints = pyramidTargets.length;
+}
+
+function rebuildScene() {
+  initBackground();
+  resetScene();
+}
+
+// ==========================================
+// 🎬 حلقة الرسم الرئيسية
+// ==========================================
 function loop(now) {
-  frameCount++;
+  var dt = Math.min((now - lastFrameTime) / 16.667, 3);
+  lastFrameTime = now;
+  phaseTime += now - (lastFrameTime - 16 * dt); // تقديري
   
-  // خلفية سوداء شبه شفافة (تأثير ذيل للنجوم)
-  ctx.globalAlpha = 1;
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
-  ctx.fillRect(0, 0, W, H);
+  // ====== اهتزاز الشاشة ======
+  if (shakeAmount > 0.1) {
+    shakeX = (Math.random() - 0.5) * shakeAmount;
+    shakeY = (Math.random() - 0.5) * shakeAmount;
+    shakeAmount *= 0.9;
+  } else {
+    shakeX = 0;
+    shakeY = 0;
+  }
   
-  // ==========================================
-  // 1. إصدار نجوم جديدة (فقط في وضع البناء)
-  // ==========================================
-  if (buildState === 'building' && stars.length < MAX_STARS) {
-    if (now - lastStarTime > 60) {
-      stars.push(createStar());
-      lastStarTime = now;
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
+  
+  // ====== 1. رسم الخلفية ======
+  drawBackground(now);
+  
+  // ====== 2. إصدار النجوم ======
+  if (phase === 'building' && builtCount < totalPoints) {
+    if (now - lastSpawn > spawnInterval && stars.length < maxStars) {
+      var nextTarget = -1;
+      // ابحث عن نقطة غير محجوزة
+      for (var i = 0; i < pyramidTargets.length; i++) {
+        if (!pyramidTargets[i].reserved && !pyramidTargets[i].settled) {
+          nextTarget = i;
+          pyramidTargets[i].reserved = true;
+          break;
+        }
+      }
+      if (nextTarget >= 0) {
+        stars.push(createStar(nextTarget));
+        lastSpawn = now;
+      }
     }
   }
   
-  // ==========================================
-  // 2. تحديث النجوم
-  // ==========================================
+  // ====== 3. تحديث النجوم ======
   for (var i = stars.length - 1; i >= 0; i--) {
     var s = stars[i];
     
     if (s.mode === 'falling') {
-      // تسقط
-      s.x += s.vx;
-      است s.y += s.vy;
-      s.twinkle += 0.2;
+      s.vx += (Math.random() - 0.5) * 0.1;
+      s.vy += 0.08;
+      s.vx *= 0.995;
+      s.vy *= 0.995;
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.wobble += s.wobbleSpeed * dt;
       
-      // إضافة نقطة للذيل
       s.trail.push({ x: s.x, y: s.y });
-      if (s.trail.length > 8) s.trail.shift();
+      if (s.trail.length > s.maxTrail) s.trail.shift();
       
-      // وصلت لمستوى الهرم؟ ابدأ التحرك نحو هدفها
-      if (s.y > H * 0.35 && nextPointIndex < pyramidPoints.length) {
-        s.mode = 'moving';
-        s.targetIndex = nextPointIndex;
-        nextPointIndex++;
+      // وصل لمستوى كافٍ؟ ابدأ الانجذاب
+      if (s.y > H * 0.3) {
+        s.mode = 'attracting';
       }
       
-    } else if (s.mode === 'moving') {
-      // تتحرك نحو نقطتها في الهرم
-      var target = pyramidPoints[s.targetIndex];
+    } else if (s.mode === 'attracting') {
+      var target = pyramidTargets[s.target];
+      if (!target) {
+        stars.splice(i, 1);
+        continue;
+      }
+      
       var dx = target.x - s.x;
       var dy = target.y - s.y;
       var dist = Math.sqrt(dx*dx + dy*dy);
       
-      if (dist < 3) {
-        //قرت في مكانها
+      if (dist < 4) {
+        // استقر
         s.mode = 'settled';
-        s.x = target.x;
-        s.y = target.y;
-        s.size = target.size;
-        // انقلها لقائمة الهرم
-        pyramid.push(s);
+        target.settled = true;
+        settled.push({
+          x: target.x,
+          y: target.y,
+          size: target.size,
+          hue: target.hue,
+          pulse: Math.random() * Math.PI * 2
+        });
+        builtCount++;
+        
+        // تأثير اصطدام
+        createDust(target.x, target.y, target.hue, 6, 3);
+        
+        // اهتزاز خفيف
+        shakeAmount = Math.max(shakeAmount, 3);
+        
         stars.splice(i, 1);
         continue;
       } else {
-        s.x += dx * 0.08;
-        s.y += dy * 0.08;
-        s.twinkle += 0.3;
+        // انجذاب مع تسارع
+        s.vx += dx * 0.006 * dt;
+        s.vy += dy * 0.006 * dt;
+        s.vx *= 0.94;
+        s.vy *= 0.94;
+        s.x += s.vx * dt;
+        s.y += s.vy * dt;
+        s.wobble += 0.3 * dt;
+        
+        s.trail.push({ x: s.x, y: s.y });
+        if (s.trail.length > s.maxTrail) s.trail.shift();
       }
     }
     
-    // حذف النجوم الخارجة عن الشاشة
-    if (s.x < -50 || s.x > W + 50 || s.y > H + 50) {
+    // تنظيف
+    if (s.x < -200 || s.x > W + 200 || s.y > H + 200) {
       stars.splice(i, 1);
-      continue;
     }
   }
   
-  // ==========================================
-  // 3. رسم النجوم
-  // ==========================================
+  // ====== 4. رسم النجوم ======
+  ctx.globalCompositeOperation = 'lighter';
+  
   for (var i = 0; i < stars.length; i++) {
     var s = stars[i];
     
-    // رسم الذيل
+    // الذيل
     for (var t = 0; t < s.trail.length; t++) {
       var tr = s.trail[t];
-      var alpha = (t / s.trail.length) * 0.5;
+      var frac = t / s.trail.length;
+      var alpha = frac * 0.7;
+      var radius = s.size * frac * 0.9;
+      if (radius < 0.3) continue;
+      
       ctx.globalAlpha = alpha;
-      ctx.fillStyle = s.color;
-      ctx.shadowBlur = 0;
+      ctx.fillStyle = hsl(s.hue, 1, 0.6);
+      ctx.shadowBlur = 8 * frac;
+      ctx.shadowColor = hsl(s.hue, 1, 0.6);
       ctx.beginPath();
-      ctx.arc(tr.x, tr.y, s.size * (t / s.trail.length), 0, Math.PI * 2);
+      ctx.arc(tr.x, tr.y, radius, 0, Math.PI * 2);
       ctx.fill();
     }
     
-    // رسم النجمة الرئيسية
-    var twinkleSize = s.size + Math.sin(s.twinkle) * 0.8;
+    // الجسم الرئيسي
+    var wobbleSize = s.size * (1 + Math.sin(s.wobble) * 0.2);
     ctx.globalAlpha = 1;
-    ctx.fillStyle = s.color;
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = s.color;
+    ctx.fillStyle = hsl(s.hue, 1, 0.7);
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = hsl(s.hue, 1, 0.6);
     ctx.beginPath();
-    ctx.arc(s.x, s.y, twinkleSize, 0, Math.PI * 2);
+    ctx.arc(s.x, s.y, wobbleSize, 0, Math.PI * 2);
     ctx.fill();
     
-    // نقطة بيضاء في المركز للتوهج
+    // النواة البيضاء
     ctx.fillStyle = '#fff';
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = '#fff';
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, wobbleSize * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // ====== 5. رسم الجسيمات المستقرة ======
+  for (var i = 0; i < settled.length; i++) {
+    var p = settled[i];
+    p.pulse += 0.08 * dt;
+    var pulse = Math.sin(p.pulse) * 0.3 + 0.7;
+    
+    ctx.globalAlpha = 0.85 + pulse * 0.15;
+    ctx.fillStyle = hsl(p.hue, 1, 0.6);
+    ctx.shadowBlur = 15 * pulse;
+    ctx.shadowColor = hsl(p.hue, 1, 0.65);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.shadowBlur = 5;
     ctx.beginPath();
-    ctx.arc(s.x, s.y, twinkleSize * 0.4, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, p.size * pulse * 0.35, 0, Math.PI * 2);
     ctx.fill();
   }
   
-  // ==========================================
-  // 4. رسم الهرم المتراكم
-  // ==========================================
-  for (var i = 0; i < pyramid.length; i++) {
-    var p = pyramid[i];
-    p.twinkle += 0.05;
-    var twinkleSize = p.size + Math.sin(p.twinkle) * 0.3;
+  // ====== 6. الغبار ======
+  for (var i = dust.length - 1; i >= 0; i--) {
+    var d = dust[i];
+    d.vx *= 0.96;
+    d.vy *= 0.96;
+    d.vy += d.gravity * dt;
+    d.x += d.vx * dt;
+    d.y += d.vy * dt;
+    d.life -= d.decay * dt;
     
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = p.color;
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = p.color;
+    if (d.life <= 0) {
+      dust.splice(i, 1);
+      continue;
+    }
+    
+    ctx.globalAlpha = d.life;
+    ctx.fillStyle = hsl(d.hue, 1, 0.7);
+    ctx.shadowBlur = 10 * d.life;
+    ctx.shadowColor = hsl(d.hue, 1, 0.6);
     ctx.beginPath();
-    ctx.arc(p.x, p.y, twinkleSize, 0, Math.PI * 2);
+    ctx.arc(d.x, d.y, d.size * d.life, 0, Math.PI * 2);
     ctx.fill();
+  }
+  
+  // ====== 7. موجات الصدمة ======
+  for (var i = shockwaves.length - 1; i >= 0; i--) {
+    var sw = shockwaves[i];
+    sw.r += 15 * dt;
+    sw.life -= sw.decay * dt;
+    sw.width *= 0.97;
     
-    // نقطة بيضاء صغيرة
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.shadowBlur = 0;
+    if (sw.life <= 0) {
+      shockwaves.splice(i, 1);
+      continue;
+    }
+    
+    ctx.globalAlpha = sw.life * 0.8;
+    ctx.strokeStyle = hsl(sw.hue, 1, 0.7);
+    ctx.lineWidth = sw.width;
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = hsl(sw.hue, 1, 0.7);
     ctx.beginPath();
-    ctx.arc(p.x, p.y, twinkleSize * 0.3, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.arc(sw.x, sw.y, sw.r, 0, Math.PI * 2);
+    ctx.stroke();
   }
   
-  // ==========================================
-  // 5. إدارة الحالة
-  // ==========================================
-  if (buildState === 'building') {
-    // اكتمل الهرم؟
-    if (nextPointIndex >= pyramidPoints.length && pyramid.length > 0) {
-      buildTimer += 16;
-      if (buildTimer > 2000) { // انتظر ثانيتين
-        buildState = 'collapsing';
-        buildTimer = 0;
-      }
-    }
-  } else if (buildState === 'collapsing') {
-    // انهيار الهرم
-    for (var i = 0; i < pyramid.length; i++) {
-      var p = pyramid[i];
-      p.x += (Math.random() - 0.5) * 3;
-      p.y += 3 + Math.random() * 2;
-      p.size *= 0.99;
-    }
-    
-    // إزالة الجسيمات الخارجة
-    pyramid = pyramid.filter(function(p) {
-      return p.y < H + 30 && p.size > 0.5;
-    });
-    
-    // انتظر ثم ابدأ من جديد
-    buildTimer += 16;
-    if (buildTimer > 1500) {
-      pyramid = [];
-      stars = [];
-      nextPointIndex = 0;
-      rebuildPyramidPoints();
-      buildState = 'building';
-      buildTimer = 0;
-    }
-  }
-  
-  // إعادة تعيين
+  ctx.globalCompositeOperation = 'source-over';
   ctx.globalAlpha = 1;
   ctx.shadowBlur = 0;
+  
+  // ====== 8. إدارة الحالة ======
+  if (phase === 'building') {
+    counterEl.textContent = builtCount + ' / ' + totalPoints;
+    if (builtCount >= totalPoints && stars.length === 0) {
+      phase = 'complete';
+      phaseEl.textContent = 'اكتمل';
+      phaseTime = now;
+      
+      // احتفال
+      var cx = W / 2;
+      var cy = H * 0.55;
+      createShockwave(cx, cy, 220);
+      createShockwave(cx, cy, 280);
+      shakeAmount = 25;
+      
+      // انفجار غبار
+      for (var row = 0; row < pyramidTargets.length; row += 3) {
+        var t = pyramidTargets[row];
+        createDust(t.x, t.y, t.hue, 3, 4);
+      }
+    }
+  } 
+  else if (phase === 'complete') {
+    if (now - phaseTime > 2500) {
+      phase = 'collapse';
+      phaseEl.textContent = 'انهيار';
+      phaseTime = now;
+      
+      // بدء الانهيار - تحويل الجسيمات المستقرة إلى حرة
+      for (var i = 0; i < settled.length; i++) {
+        var p = settled[i];
+        dust.push({
+          x: p.x, y: p.y,
+          vx: (p.x - W/2) * 0.03 + (Math.random() - 0.5) * 5,
+          vy: (Math.random() - 0.5) * 5 - 2,
+          size: p.size * 1.5,
+          hue: p.hue,
+          life: 1,
+          decay: 0.008 + Math.random() * 0.01,
+          gravity: 0.25
+        });
+      }
+      settled = [];
+      shakeAmount = 40;
+    }
+  }
+  else if (phase === 'collapse') {
+    // بقاء الجسيمات في dust، تختفي تدريجياً
+    if (now - phaseTime > 2500 && dust.length < 30) {
+      resetScene();
+      phaseEl.textContent = 'بناء';
+    }
+  }
+  
+  ctx.restore();
   
   requestAnimationFrame(loop);
 }
 
 // ==========================================
-// 📱 التفاعل - لمس لإضافة نجوم سريعة
+// 📱 التفاعل
 // ==========================================
 canvas.addEventListener('touchstart', function(e) {
   e.preventDefault();
-  for (var k = 0; k < 10; k++) {
-    stars.push(createStar());
-  }
+  var t = e.touches[0];
+  var x = t.clientX;
+  var y = t.clientY;
+  createShockwave(x, y, 200 + Math.random() * 120);
+  createDust(x, y, 200 + Math.random() * 120, 30, 6);
+  shakeAmount = 15;
 }, { passive: false });
 
 canvas.addEventListener('mousedown', function(e) {
-  for (var k = 0; k < 15; k++) {
-    stars.push(createStar());
-  }
+  createShockwave(e.clientX, e.clientY, 200 + Math.random() * 120);
+  createDust(e.clientX, e.clientY, 200 + Math.random() * 120, 30, 6);
+  shakeAmount = 15;
 });
 
 document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
-window.addEventListener('resize', function() {
-  // إعادة الحساب عند تغيير الحجم
-  W = window.innerWidth;
-  H = window.innerHeight;
-  canvas.width = W * dpr;
-  canvas.height = H * dpr;
-  canvas.style.width = W + 'px';
-  canvas.style.height = H + 'px';
-  ctx.scale(dpr, dpr);
-});
+document.addEventListener('dblclick', function(e) { e.preventDefault(); }, { passive: false });
 
 // ==========================================
 // 🚀 بدء التشغيل
 // ==========================================
-rebuildPyramidPoints();
+initBackground();
+buildPyramidPoints();
+totalPoints = pyramidTargets.length;
+phaseEl.textContent = 'بناء';
+lastFrameTime = performance.now();
 requestAnimationFrame(loop);
+
 </script>
 </body>
 </html>
