@@ -2,39 +2,51 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#000">
-<title>SPACE PLANET</title>
+<title>MATRIX</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  * { margin: 0; padding: 0; }
   html, body {
     width: 100%; height: 100%;
     background: #000; overflow: hidden;
     touch-action: none;
     -webkit-user-select: none;
-    font-family: -apple-system, sans-serif;
+    font-family: 'Courier New', monospace;
   }
   canvas { display: block; }
-  #title {
+  .brand {
     position: fixed; bottom: 20px;
     left: 0; right: 0; text-align: center;
-    color: rgba(140,220,255,0.5);
+    color: rgba(0, 255, 200, 0.4);
     font-size: 10px; letter-spacing: 8px;
     text-transform: uppercase;
     pointer-events: none; z-index: 10;
+    text-shadow: 0 0 20px rgba(0, 255, 200, 0.6);
   }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="title">◈ SATURN ◈</div>
+<div class="brand">◈ MATRIX ◈</div>
 
 <script>
 var canvas = document.getElementById('c');
 var ctx = canvas.getContext('2d');
 
-var W = 0, H = 0, CX = 0, CY = 0, R = 0;
+var W = 0, H = 0;
+var fontSize = 16;
+var cols = 0;
+var drops = [];
+
+// الرموز — أرقام + حروف + رموز خاصة
+var CHARS = '0123456789' +
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZ' +
+            'abcdefghijklmnopqrstuvwxyz' +
+            '!@#$%^&*()_+-=[]{}|;:<>?/~' +
+            'ابتثجحخدذرزسشصضطظعغفقكلمنهوي' +
+            'ابجد01★☆♦♠♣♥';
 
 function setup() {
   W = window.innerWidth;
@@ -43,324 +55,117 @@ function setup() {
   canvas.height = H;
   canvas.style.width = W + 'px';
   canvas.style.height = H + 'px';
-  CX = W / 2;
-  CY = H / 2;
-  R = Math.min(W, H) * 0.18;
+  
+  // ضبط حجم الخط حسب عرض الشاشة
+  fontSize = Math.max(12, Math.min(20, W / 25));
+  
+  cols = Math.floor(W / fontSize);
+  drops = [];
+  for (var i = 0; i < cols; i++) {
+    drops[i] = Math.random() * -100;  // ارتفاع البداية (سالب = أعلى الشاشة)
+  }
+  
   ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(0, 0, W, Hح);
 }
 setup();
-window.addEventListener('resize', function() {
-  setTimeout(setup, 200);
+window.addEventListener('ثresize', function() {
+  في setTimeout(setup, 200);
 });
 
 // ============================================================
-// STARFIELD (3D-ish depth)
+// الرسم
 // ============================================================
-var stars = [];
-function makeStars() {
-  stars = [];
-  for (var i = 0; i < 250; i++) {
-    stars.push({
-      x: Math.random() * W,
-      y: Math.random() * H,
-      z: Math.random(),        // depth 0-1
-      size: 0.3 + Math.random() * 1.7,
-      phase: Math.random() * 6.28,
-      freq: 0.5 + Math.random() * 2,
-      color: Math.random() < 0.2
-        ? 'rgb(150, 200, 255)'
-        : 'rgb(255, 255, 255)'
-    });
-  }
+var lastDrawTime = 0;
+var drawInterval = 50;  // سرعة النزول بالمللي ثانية
+
+function getRandomChar() {
+  return CHARS.charAt(Math.floor(Math.random() * CHARS.length));
 }
 
-// ============================================================
-// RING PARTICLES (ellipse orbiting planet)
-// ============================================================
-var ringParticles = [];
-function makeRing() {
-  ringParticles = [];
-  var count = 900;
-  var innerR = R * 1.4;
-  var outerR = R * 3.5;
-  
-  for (var i = 0; i < count; i++) {
-    var r = innerR + Math.random() * (outerR - innerR);
-    var angle = Math.random() * 6.28;
-    var thickness = (1 - Math.abs((r - innerR) / (outerR - innerR) - 0.5) * 2);
-    var size = 0.4 + Math.random() * 1.2 + thickness * 0.8;
-    
-    // color based on distance
-    var t = (r - innerR) / (outerR - innerR);
-    var hue = 200 + t * 40;   // cyan → blue → purple
-    var light = 55 + Math.random() * 25;
-    var alpha = 0.3 + Math.random() * 0.6 + thickness * 0.3;
-    
-    ringParticles.push({
-      r: r,
-      angle: angle,
-      speed: 0.0015 + Math.random() * 0.002,
-      size: size,
-      color: 'hsla(' + hue + ', 90%, ' + light + '%, ' + alpha + ')',
-      white: Math.random() < 0.15
-    });
-  }
-}
-
-// ============================================================
-// ORBITAL DUST (scattered particles)
-// ============================================================
-var orbitalDust = [];
-function makeDust() {
-  orbitalDust = [];
-  for (var i = 0; i < 200; i++) {
-    var a = Math.random() * 6.28;
-    var d = R * 4 + Math.random() * R * 6;
-    orbitalDust.push({
-      angle: a,
-      dist: d,
-      size: 0.5 + Math.random() * 1.5,
-      speed: 0.0003 + Math.random() * 0.0008,
-      alpha: 0.2 + Math.random() * 0.5,
-      hue: 180 + Math.random() * 120
-    });
-  }
-}
-
-// ============================================================
-// ANIMATED BACKGROUND
-// ============================================================
-function drawBackground(now) {
-  // Deep space gradient
-  var g = ctx.createRadialGradient(CX, CY, 0, CX, CY, Math.max(W, H) * 0.8);
-  g.addColorStop(0, '#081020');
-  g.addColorStop(0.4, '#040810');
-  g.addColorStop(1, '#000000');
-  ctx.fillStyle = g;
+function draw() {
+  // خلفية سوداء شبه شفافة (تأثير الذيل المتلاشي)
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
   ctx.fillRect(0, 0, W, H);
   
-  // Ambient nebula glow
-  var neb = ctx.createRadialGradient(CX, CY, 0, CX, CY, R * 6);
-  neb.addColorStop(0, 'rgba(40, 100, 200, 0.15)');
-  neb.addColorStop(0.5, 'rgba(80, 40, 180, 0.06)');
-  neb.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = neb;
-  ctx.fillRect(0, 0, W, H);
-}
-
-function drawStars(now) {
-  for (var i = 0; i < stars.length; i++) {
-    var s = stars[i];
-    var twinkle = Math.sin(now * 0.001 * s.freq + s.phase) * 0.5 + 0.5;
-    ctx.globalAlpha = (0.3 + s.z * 0.7) * (0.4 + twinkle * 0.6);
-    ctx.fillStyle = s.color;
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, s.size, 0, 6.28);
-    ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-}
-
-// ============================================================
-// PLANET with gradient shading
-// ============================================================
-function drawPlanet(now) {
-  var pulse = Math.sin(now * 0.001) * 2;
-  var r = R + pulse;
+  ctx.font = fontSize + 'px Courier New';
+  ctx.textBaseline = 'top';
   
-  // Outer glow / atmosphere
-  var glow = ctx.createRadialGradient(CX, CY, r * 0.9, CX, CY, r * 2);
-  glow.addColorStop(0, 'rgba(80, 180, 255, 0.5)');
-  glow.addColorStop(0.4, 'rgba(60, 130, 220, 0.2)');
-  glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.arc(CX, CY, r * 2, 0, 6.28);
-  ctx.fill();
-  
-  // Planet body gradient (3D sphere illusion)
-  var bodyGrad = ctx.createRadialGradient(
-    CX - r * 0.35, CY - r * 0.35, r * 0.1,
-    CX, CY, r
-  );
-  bodyGrad.addColorStop(0, '#8ddcff');
-  bodyGrad.addColorStop(0.3, '#4aa8e8');
-  bodyGrad.addColorStop(0.6, '#1e5fa8');
-  bodyGrad.addColorStop(0.85, '#0a2a50');
-  bodyGrad.addColorStop(1, '#020610');
-  
-  ctx.fillStyle = bodyGrad;
-  ctx.beginPath();
-  ctx.arc(CX, CY, r, 0, 6.28);
-  ctx.fill();
-  
-  // Planet surface details (bands)
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(CX, CY, r, 0, 6.28);
-  ctx.clip();
-  
-  for (var i = 0; i < 8; i++) {
-    var y = CY - r + (i * r * 2 / 8);
-    var bandH = r * 0.15;
-    var band = ctx.createLinearGradient(CX - r, y, CX + r, y + bandH);
-    band.addColorStop(0, 'rgba(100, 200, 255, 0.08)');
-    band.addColorStop(0.5, 'rgba(150, 220, 255, 0.15)');
-    band.addColorStop(1, 'rgba(100, 200, 255, 0.08)');
-    ctx.fillStyle = band;
-    ctx.fillRect(CX - r, y, r * 2, bandH);
-  }
-  ctx.restore();
-  
-  // Highlight
-  var spec = ctx.createRadialGradient(
-    CX - r * 0.4, CY - r * 0.4, 0,
-    CX - r * 0.4, CY - r * 0.4, r * 0.6
-  );
-  spec.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
-  spec.addColorStop(0.5, 'rgba(200, 240, 255, 0.15)');
-  spec.addColorStop(1, 'rgba(0, 0, 0, 0)');
-  ctx.fillStyle = spec;
-  ctx.beginPath();
-  ctx.arc(CX, CY, r, 0, 6.28);
-  ctx.fill();
-}
-
-// ============================================================
-// RING (background half - behind planet)
-// ============================================================
-function drawRingBack(now) {
-  drawRingLayer(now, true);
-}
-
-// ============================================================
-// RING (foreground half - in front of planet)
-// ============================================================
-function drawRingFront(now) {
-  drawRingLayer(now, false);
-}
-
-function drawRingLayer(now, isBack) {
-  var tilt = 0.32;   // ellipse tilt (visual compression)
-  var rot = now * 0.0001; // slow rotation
-  
-  for (var i = 0; i < ringParticles.length; i++) {
-    var p = ringParticles[i];
-    p.angle += p.speed;
+  for (var i = 0; i < drops.length; i++) {
+    var x = i * fontSize;
+    var y = drops[i] * fontSize;
     
-    var angle = p.angle + rot;
-    var x = Math.cos(angle) * p.r;
-    var y = Math.sin(angle) * p.r * tilt;
+    var char = getRandomChar();
     
-    // Determine front/back by sin(angle)
-    var isFrontHalf = Math.sin(angle) > 0;
-    if (isFrontHalf === isBack) continue;
+    // ============ الرأس (الرمز المضيء) ============
+    // توهج أبيض ساطع
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = '#00ffcc';
+    ctx.fillText(char, x, y);
     
-    var sx = CX + x;
-    var sy = CY + y;
-    
-    // cull off-screen
-    if (sx < -10 || sx > W + 10 || sy < -10 || sy > H + 10) continue;
-    
-    // depth-based brightness
-    var depth = Math.sin(angle);
-    var brightness = 0.5 + depth * 0.5;
-    
-    ctx.globalAlpha = brightness;
-    ctx.fillStyle = p.color;
-    ctx.beginPath();
-    ctx.arc(sx, sy, p.size, 0, 6.28);
-    ctx.fill();
-    
-    // white sparkle
-    if (p.white) {
-      ctx.globalAlpha = brightness * 0.9;
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(sx, sy, p.size * 0.5, 0, 6.28);
-      ctx.fill();
+    // ============ الرمز السابق (أخضر/سماوي) ============
+    if (y - fontSize >= 0) {
+      var prevChar = getRandomChar();
+      ctx.fillStyle = 'rgba(0, 255, 200, 0.6)';
+      ctx.shadowBlur = 8;
+      ctx.shadowColor = '#00ffcc';
+      ctx.fillText(prevChar, x, y - fontSize);
     }
-  }
-  ctx.globalAlpha = 1;
-}
-
-// ============================================================
-// ORBITAL DUST (wide halo)
-// ============================================================
-function drawDust(now) {
-  for (var i = 0; i < orbitalDust.length; i++) {
-    var d = orbitalDust[i];
-    d.angle += d.speed;
-    var a = d.angle;
-    var x = Math.cos(a) * d.dist;
-    var y = Math.sin(a) * d.dist * 0.32;
-    var sx = CX + x;
-    var sy = CY + y;
-    if (sx < 0 || sx > W || sy < 0 || sy > H) continue;
     
-    var depth = Math.sin(a);
-    var brightness = 0.3 + depth * 0.5;
+    // ============ الرمز الثالث (بنفسجي) ============
+    if (y - fontSize * 2 >= 0) {
+      var p3 = getRandomChar();
+      ctx.fillStyle = 'rgba(120, 100, 255, 0.3)';
+      ctx.shadowBlur = 4;
+      ctx.shadowColor = '#8060ff';
+      ctx.fillText(p3, x, y - fontSize * 2);
+    }
     
-    ctx.globalAlpha = d.alpha * brightness;
-    ctx.fillStyle = 'hsl(' + d.hue + ', 80%, 70%)';
-    ctx.beginPath();
-    ctx.arc(sx, sy, d.size, 0, 6.28);
-    ctx.fill();
+    // إعادة التمركز عند الخروج
+    if (y > H && Math.random() > 0.975) {
+      drops[i] = Math.random() * -20;
+    }
+    
+    // النزول
+    drops[i] += 0.5;
   }
-  ctx.globalAlpha = 1;
+  
+  ctx.shadowBlur = 0;
 }
 
 // ============================================================
-// VIGNETTE
-// ============================================================
-function drawVignette() {
-  var v = ctx.createRadialGradient(CX, CY, Math.min(W, H) * 0.35, CX, CY, Math.max(W, H) * 0.75);
-  v.addColorStop(0, 'rgba(0,0,0,0)');
-  v.addColorStop(1, 'rgba(0,0,0,0.75)');
-  ctx.fillStyle = v;
-  ctx.fillRect(0, 0, W, H);
-}
-
-// ============================================================
-// MAIN LOOP
+// حلقة الرسم
 // ============================================================
 function loop(now) {
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.globalAlpha = 1;
-  
-  drawBackground(now);
-  drawStars(now);
-  
-  // Ring BACK (behind planet)
-  ctx.globalCompositeOperation = 'lighter';
-  drawRingBack(now);
-  ctx.globalCompositeOperation = 'source-over';
-  
-  // Planet (with glow)
-  ctx.globalCompositeOperation = 'lighter';
-  drawPlanet(now);
-  ctx.globalCompositeOperation = 'source-over';
-  
-  // Ring FRONT (in front of planet)
-  ctx.globalCompositeOperation = 'lighter';
-  drawRingFront(now);
-  drawDust(now);
-  ctx.globalCompositeOperation = 'source-over';
-  
-  // Vignette
-  drawVignette();
-  
+  if (now - lastDrawTime > drawInterval) {
+    draw();
+    lastDrawTime = now;
+  }
   requestAnimationFrame(loop);
 }
 
-// ============================================================
-// START
-// ============================================================
-makeStars();
-makeRing();
-makeDust();
 requestAnimationFrame(loop);
+
+// ============================================================
+// التفاعل: لمس لإضافة "دفعة" من الأعمدة
+// ============================================================
+canvas.addEventListener('touchstart', function(e) {
+  e.preventDefault();
+  for (var i = 0; i < 20; i++) {
+    var idx = Math.floor(Math.random() * cols);
+    drops[idx] = Math.random() * -10;
+  }
+}, { passive: false });
+
+canvas.addEventListener('mousedown', function(e) {
+  for (var i = 0; i < 20; i++) {
+    var idx = Math.floor(Math.random() * cols);
+    drops[idx] = Math.random() * -10;
+  }
+});
+
+document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
 </script>
 </body>
 </html>
